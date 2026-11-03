@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+    <!-- interactive-widget: bàn phím ảo thu nhỏ khung nhìn (ô nhập liệu không bị che); viewport-fit: dùng vùng an toàn (tai thỏ, thanh Home) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>iThunder AI Workspace</title>
+
+    <!-- CẤU HÌNH TĨNH TOÀN CỤC CHO AI GATEWAY & AI PLATFORM -->
+    <script>
+      window.TARA_CONFIG = {
+        API_GATEWAY_URL: "https://aigate.is-tech.vn",
+        WS_GATEWAY_URL: "wss://aigate.is-tech.vn"
+      };
+    </script>
+
+    <!-- ÁP THEME ĐÃ LƯU TRƯỚC KHI REACT KẾT XUẤT: mọi route (/, /knowledge, /analytics) đều đúng theme, không nháy màu -->
+    <script>
+      try {
+        if ((localStorage.getItem("tara_theme") || "dark") === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </head>
+  <body class="bg-[#060b13] text-slate-200 m-0 p-0 font-sans selection:bg-blue-600/30 overflow-hidden">
+    <div id="root"></div>
+  </body>
+</html>

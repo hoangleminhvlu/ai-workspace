@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --animate-fade-in: fade-in 0.25s ease-out;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-scan-line: scan-line 2s linear infinite;
+
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+  }
+  @keyframes scan-line {
+    0% { top: 0%; }
+    100% { top: 100%; }
+  }
+}
+
+/* Chiều cao khung ứng dụng theo khung nhìn ĐỘNG (dvh): trên điện thoại 100vh tính cả phần bị thanh địa chỉ /
+   bàn phím ảo che nên ô nhập Prompt bị khuất; trình duyệt cũ chưa hỗ trợ dvh dùng lại 100vh */
+@utility h-app {
+  height: 100vh;
+  @supports (height: 100dvh) {
+    height: 100dvh;
+  }
+}
+
+/* Tailwind v4 mặc định cho `dark:` theo hệ điều hành; ép theo class `.dark` trên <html> do App.jsx điều khiển */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --- BẢNG MÀU ĐỘNG CHO HỆ THỐNG ITHUNDER AI OS --- */
+:root {
+  /* Giao diện sáng (Light Mode) - Chuẩn tương phản cao giống Chainlit WebUI */
+  color-scheme: light;
+  --bg-workspace: #f8fafc;          /* Nền vùng làm việc Slate-50 */
+  --bg-sidebar: #ffffff;            /* Sidebar, header, khung nhập liệu màu trắng */
+  --bg-card: #ffffff;               /* Thẻ thông tin, bong bóng chat AI */
+  --bg-elevated: #f1f5f9;           /* Nút phụ, ô chọn, nhãn đếm Slate-100 */
+  --bg-hover: #e2e8f0;              /* Trạng thái rê chuột Slate-200 */
+  --bg-active-item: rgba(37, 99, 235, 0.08);
+  --border-main: #e2e8f0;
+  --text-strong: #0f172a;           /* Tiêu đề Slate-900 */
+  --text-main: #1e293b;             /* Phông chữ chính Slate-800 */
+  --text-muted: #475569;            /* Phông chữ phụ Slate-600 */
+  --text-subtle: #64748b;           /* Chú thích Slate-500 */
+}
+
+.dark {
+  /* Giao diện tối (Dark Mode) - Giữ nguyên bộ màu xanh đen thẫm nguyên bản */
+  color-scheme: dark;
+  --bg-workspace: #060b13;
+  --bg-sidebar: #0a121e;
+  --bg-card: #0a121e;
+  --bg-elevated: #0f172a;
+  --bg-hover: #1e293b;
+  --bg-active-item: rgba(59, 130, 246, 0.15);
+  --border-main: #1e293b;
+  --text-strong: #ffffff;
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+}
+
+/* Đăng ký biến màu thành utility Tailwind: bg-app, bg-panel, text-fg, border-line... */
+@theme inline {
+  --color-app: var(--bg-workspace);
+  --color-panel: var(--bg-sidebar);
+  --color-card: var(--bg-card);
+  --color-elevated: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active-item);
+  --color-line: var(--border-main);
+  --color-fg: var(--text-main);
+  --color-fg-strong: var(--text-strong);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-subtle: var(--text-subtle);
+}
+
+body {
+  background-color: var(--bg-workspace);
+  color: var(--text-main);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom Scrollbar thích ứng theo Theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--bg-workspace);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-main);
+  border-radius: 9999px;
+}
