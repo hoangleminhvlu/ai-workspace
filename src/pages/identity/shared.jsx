@@ -58,6 +58,7 @@ export const ACTION_LABELS = {
   'cloud.members': 'Đổi thành viên phân vùng',
   'cloud.recycle': 'Thu hồi phân vùng',
   'knowledge.restore': 'Khôi phục Kho Tri thức',
+  'knowledge.open': 'Mở Kho phân vùng Private (admin)',
   'mcp.server.create': 'Đăng ký MCP Server',
   'mcp.server.update': 'Sửa MCP Server',
   'mcp.server.delete': 'Gỡ MCP Server',

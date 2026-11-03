@@ -623,7 +623,7 @@ export const identityAPI = {
     return { status: "SUCCESS", fileName };
   },
 
-  // Nhật ký thao tác: { target_id, actor_id, limit, before_id }
+  // Nhật ký thao tác: { target_id (uid hoặc <Nhánh>/<gid>), actor_id, action, limit, before_id }
   listAudit: (params = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

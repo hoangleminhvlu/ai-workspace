@@ -19,6 +19,7 @@ const describeChange = (c) => {
 export default function AuditPanel() {
   const [items, setItems] = useState([]);
   const [target, setTarget] = useState('');
+  const [action, setAction] = useState('');   // vd. knowledge.open: admin mở Kho phân vùng Private
   const [source, setSource] = useState('');
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function AuditPanel() {
   const load = useCallback(async (beforeId = null) => {
     setLoading(true);
     try {
-      const res = await identityAPI.listAudit({ target_id: target.trim(), limit: PAGE, before_id: beforeId });
+      const res = await identityAPI.listAudit({ target_id: target.trim(), action, limit: PAGE, before_id: beforeId });
       if (!Array.isArray(res?.items)) { setNotice({ type: 'error', text: res?.detail || 'Không tải được nhật ký.' }); return; }
       setItems(prev => beforeId ? [...prev, ...res.items] : res.items);
       setSource(res.source);
@@ -36,14 +37,18 @@ export default function AuditPanel() {
     } catch {
       setNotice({ type: 'error', text: 'Không tải được nhật ký.' });
     } finally { setLoading(false); }
-  }, [target]);
+  }, [target, action]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col gap-4">
       <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); load(); }}>
-        <input value={target} onChange={e => setTarget(e.target.value.replace(/\D/g, ''))} placeholder="Lọc theo uid người dùng" aria-label="Lọc theo uid" className={`${controlCls} w-56`} />
+        <input value={target} onChange={e => setTarget(e.target.value.replace(/[^A-Za-z0-9/]/g, ''))} placeholder="uid hoặc phân vùng (Projects/1161000)" aria-label="Lọc theo đối tượng" className={`${controlCls} w-64`} />
+        <select value={action} onChange={e => setAction(e.target.value)} aria-label="Lọc theo thao tác" className={`${controlCls} w-auto`}>
+          <option value="">Mọi thao tác</option>
+          {Object.entries(ACTION_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
         <Button type="submit" icon={RefreshCw} busy={loading}>Xem nhật ký</Button>
         {source === 'file' && <span className="text-[11px] text-amber-600 dark:text-amber-400">PostgreSQL không truy cập được — đang đọc tệp nhật ký dự phòng.</span>}
       </form>
