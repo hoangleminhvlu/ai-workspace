@@ -538,6 +538,13 @@ export const identityAPI = {
   // Thu hồi về Template (cần xác nhận PassCode): confirmName = iDCloudName hiện tại
   recycleCloud: (branch, gid, confirmName) =>
     identitySend("POST", `${cloudPath(branch, gid)}/recycle`, { confirm_name: confirmName }, "thu hồi phân vùng"),
+  // Kho Tri thức đã lưu trữ khi thu hồi phân vùng: { archives: [{ collection, key, cloud_name, archived_at, chunks, files, synced_chunks }] }
+  listKnowledgeArchives: (q = "") =>
+    identityGet(`/knowledge/archives${q ? `?q=${encodeURIComponent(q)}` : ""}`, "truy vấn Kho Tri thức đã lưu trữ"),
+  // Khôi phục vào Kho của một phân vùng đã cấp phát (cần xác nhận PassCode) => { mode: rename | merge, chunks, message }
+  restoreKnowledgeArchive: (collection, branch, gid) =>
+    identitySend("POST", `/knowledge/archives/${encodeURIComponent(collection)}/restore`, { branch, gid_number: Number(gid) },
+      "khôi phục Kho Tri thức"),
 
   // --- Tự phục vụ: hồ sơ và email của chính người đăng nhập ---
   updateMyProfile: (patch) => identitySend("PATCH", "/me/profile", patch, "cập nhật hồ sơ cá nhân"),

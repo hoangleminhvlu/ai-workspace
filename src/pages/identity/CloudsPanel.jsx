@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Database, FolderKanban, Pencil, Plus, RefreshCw, Save, Trash2, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, Database, FolderKanban, Pencil, Plus, RefreshCw, Save, Trash2, UserMinus, UserPlus, Users } from 'lucide-react';
 import { identityAPI } from '../../services/api';
 import { Button, Field, Modal, Notice, Section, controlCls, inputCls } from './shared';
 
@@ -154,6 +154,155 @@ function MembersDialog({ cloud, canManage, onClose, onSaved }) {
   );
 }
 
+const formatTime = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('vi-VN');
+};
+
+// Khôi phục một Kho Tri thức đã lưu trữ vào Kho của một phân vùng đang hoạt động (mặc định: cùng nhánh/gidNumber)
+function RestoreDialog({ archive, onClose, onRestored }) {
+  const [clouds, setClouds] = useState(null);
+  const [target, setTarget] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    identityAPI.listClouds({}).then(res => {
+      if (!Array.isArray(res?.clouds)) { setError(res?.detail || 'Không tải được danh mục phân vùng.'); return; }
+      setClouds(res.clouds);
+      const same = res.clouds.find(c => `${c.branch}/${c.gid_number}` === archive.key);
+      setTarget(same ? archive.key : res.clouds[0] ? `${res.clouds[0].branch}/${res.clouds[0].gid_number}` : '');
+    }).catch(() => setError('Không tải được danh mục phân vùng.'));
+  }, [archive.key]);
+
+  const chosen = clouds?.find(c => `${c.branch}/${c.gid_number}` === target);
+  const otherProject = chosen && archive.cloud_name && chosen.name !== archive.cloud_name;
+
+  const restore = async () => {
+    if (!chosen) return;
+    setBusy(true); setError('');
+    try {
+      const res = await identityAPI.restoreKnowledgeArchive(archive.collection, chosen.branch, chosen.gid_number);
+      if (res?.status === 'SUCCESS') onRestored(res.message);
+      else setError(res?.detail || 'Không khôi phục được Kho Tri thức.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="Khôi phục Kho Tri thức đã lưu trữ" onClose={onClose} width="max-w-xl">
+      <div className="flex flex-col gap-3">
+        <Notice notice={error ? { type: 'error', text: error } : null} />
+        <div className="text-[11px] text-fg-muted leading-relaxed border border-line rounded-lg p-3 bg-elevated/40">
+          <div>Bản lưu trữ: <code className="font-mono text-fg">{archive.collection}</code></div>
+          <div>Phân vùng cũ: <b className="text-fg">{archive.cloud_name || '—'}</b> <span className="font-mono">({archive.key || '—'})</span> · lưu trữ lúc {formatTime(archive.archived_at)}</div>
+          <div><b className="text-fg">{archive.chunks}</b> đoạn tri thức từ <b className="text-fg">{archive.files}</b> tệp</div>
+        </div>
+        <Field label="Khôi phục vào phân vùng" hint="Kho đích đã có tri thức thì các đoạn của bản lưu trữ được gộp vào.">
+          <select value={target} onChange={e => setTarget(e.target.value)} disabled={!clouds} className={inputCls}>
+            {!clouds && <option>Đang tải...</option>}
+            {clouds?.length === 0 && <option value="">Không có phân vùng nào đang hoạt động</option>}
+            {clouds?.map(c => {
+              const key = `${c.branch}/${c.gid_number}`;
+              return <option key={c.dn} value={key}>{c.name} ({key}){key === archive.key ? ' · phân vùng cũ' : ''}</option>;
+            })}
+          </select>
+        </Field>
+        {otherProject && (
+          <Notice notice={{ type: 'error', text: `Phân vùng đích ${chosen.name} khác dự án đã lưu trữ (${archive.cloud_name}): mọi thành viên của ${chosen.name} sẽ khai thác được tri thức này.` }} />
+        )}
+        {archive.synced_chunks > 0 && (
+          <p className="text-[11px] text-amber-700 dark:text-amber-400">
+            {archive.synced_chunks} đoạn được nạp từ thư mục Kho Dữ liệu cũ. Nếu tệp gốc không còn trong thư mục của phân vùng đích,
+            lần “Đồng bộ thư mục” sau có thể gỡ các đoạn này: hãy đưa lại tệp gốc vào Kho Dữ liệu trước khi đồng bộ.
+          </p>
+        )}
+        <p className="text-[11px] text-fg-subtle">Thao tác cần nhập lại PassCode để xác nhận.</p>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Hủy</Button>
+          <Button variant="primary" icon={ArchiveRestore} busy={busy} disabled={!chosen} onClick={restore}>Khôi phục</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Kho Tri thức được lưu trữ khi thu hồi phân vùng (hoặc tri thức còn sót khi cấp phát)
+function ArchivesSection({ version, onNotice }) {
+  const [archives, setArchives] = useState(null);
+  const [q, setQ] = useState('');
+  const [error, setError] = useState('');
+  const [restoring, setRestoring] = useState(null);
+
+  const load = useCallback(async (query = q) => {
+    try {
+      const res = await identityAPI.listKnowledgeArchives(query.trim());
+      if (Array.isArray(res?.archives)) { setArchives(res.archives); setError(''); }
+      else setError(res?.detail || 'Không tải được danh mục Kho Tri thức đã lưu trữ.');
+    } catch {
+      setError('Không tải được danh mục Kho Tri thức đã lưu trữ.');
+    }
+  }, [q]);
+
+  useEffect(() => {
+    const t = setTimeout(() => load(), 300);   // chờ người dùng gõ xong ô tìm kiếm
+    return () => clearTimeout(t);
+  }, [load, version]);
+
+  return (
+    <Section title="Kho Tri thức đã lưu trữ" icon={Archive} actions={<Button icon={RefreshCw} onClick={() => load()}>Tải lại</Button>}>
+      <p className="text-[11px] text-fg-muted leading-relaxed">
+        Khi thu hồi phân vùng, Kho Tri thức được đổi tên thành <code className="font-mono">&lt;collection&gt;__a&lt;thời điểm&gt;</code> để
+        dự án được cấp lại cùng gidNumber bắt đầu với kho trống. Khôi phục để thành viên của một phân vùng đang hoạt động khai thác lại tri thức này.
+      </p>
+      <input aria-label="Tìm Kho Tri thức đã lưu trữ" value={q} onChange={e => setQ(e.target.value)}
+        placeholder="Mã phân vùng cũ, collection hoặc gidNumber" className={`${controlCls} w-72`} />
+      <Notice notice={error ? { type: 'error', text: error } : null} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left border-collapse">
+          <thead>
+            <tr className="border-b border-line text-fg-muted">
+              <th className="py-2 pr-4 font-medium">Phân vùng cũ</th>
+              <th className="py-2 pr-4 font-medium">Bản lưu trữ</th>
+              <th className="py-2 pr-4 font-medium">Lưu trữ lúc</th>
+              <th className="py-2 pr-4 font-medium">Tri thức</th>
+              <th className="py-2 pr-0 font-medium text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {archives === null ? (
+              <tr><td colSpan={5} className="py-6 text-center text-fg-subtle italic">Đang tải...</td></tr>
+            ) : archives.length === 0 ? (
+              <tr><td colSpan={5} className="py-6 text-center text-fg-subtle italic">Không có Kho Tri thức nào đã lưu trữ.</td></tr>
+            ) : archives.map(a => (
+              <tr key={a.collection} className="border-b border-line last:border-0 align-top">
+                <td className="py-2.5 pr-4">
+                  <div className="font-mono font-semibold text-fg-strong">{a.cloud_name || '—'}</div>
+                  <div className="text-[10px] font-mono text-fg-subtle">{a.key || '—'}</div>
+                </td>
+                <td className="py-2.5 pr-4 font-mono text-[10px] text-fg-muted break-all">
+                  {a.collection}
+                  {a.reason === 'allocate' && <div className="font-sans text-fg-subtle">Tri thức còn sót khi cấp phát</div>}
+                </td>
+                <td className="py-2.5 pr-4 whitespace-nowrap text-fg-muted">
+                  {formatTime(a.archived_at)}
+                  {a.archived_by && <div className="text-[10px] text-fg-subtle">bởi <span className="font-mono">{a.archived_by}</span></div>}
+                </td>
+                <td className="py-2.5 pr-4 whitespace-nowrap text-fg-muted"><b className="text-fg">{a.chunks}</b> đoạn · {a.files} tệp</td>
+                <td className="py-2.5 pr-0 text-right">
+                  <Button icon={ArchiveRestore} disabled={!a.chunks} onClick={() => setRestoring(a)}>Khôi phục</Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {restoring && <RestoreDialog archive={restoring} onClose={() => setRestoring(null)}
+        onRestored={(message) => { setRestoring(null); onNotice({ type: 'success', text: message }); load(); }} />}
+    </Section>
+  );
+}
+
 export default function CloudsPanel() {
   const [data, setData] = useState(null);
   const [filters, setFilters] = useState({ branch: '', lifecycle: '', q: '', include_templates: false });
@@ -163,6 +312,7 @@ export default function CloudsPanel() {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState(null);
   const [membersOf, setMembersOf] = useState(null);
+  const [archivesVersion, setArchivesVersion] = useState(0);   // tải lại danh mục lưu trữ sau khi thu hồi phân vùng
 
   const load = useCallback(async (f = filters) => {
     try {
@@ -202,6 +352,7 @@ export default function CloudsPanel() {
     try {
       const res = await identityAPI.recycleCloud(c.branch, c.gid_number, typed.trim());
       setNotice(res?.status === 'SUCCESS' ? { type: 'success', text: res.message } : { type: 'error', text: res?.detail || 'Không thu hồi được phân vùng.' });
+      if (res?.status === 'SUCCESS') setArchivesVersion(v => v + 1);
       await load();
     } finally { setBusy(''); }
   };
@@ -323,6 +474,8 @@ export default function CloudsPanel() {
           </table>
         </div>
       </Section>
+
+      {canManage && <ArchivesSection version={archivesVersion} onNotice={setNotice} />}
 
       {editing && <EditDialog cloud={editing} data={data} onClose={() => setEditing(null)}
         onSaved={(message) => { setEditing(null); setNotice({ type: 'success', text: message }); load(); }} />}
