@@ -218,9 +218,15 @@ export const iThunderAPI = {
     }
   },
 
-  // Phân vùng Public người dùng không tham gia nhưng được khai thác: { clouds: [{ storage_key, display_name, cloud, permission }], max_opened }
-  listPublicClouds: async (q = "") => {
-    const response = await fetch(`${httpUrl}/api/rag/public-clouds${q ? `?q=${encodeURIComponent(q)}` : ""}`, {
+  // Phân vùng Public người dùng không tham gia nhưng được khai thác:
+  // { clouds: [{ storage_key, display_name, cloud, permission }], max_opened, can_include_private }
+  // includePrivate (chỉ quản trị viên): gồm cả phân vùng Private, quyền quản trị
+  listPublicClouds: async (q = "", includePrivate = false) => {
+    const query = new URLSearchParams();
+    if (q) query.set("q", q);
+    if (includePrivate) query.set("include_private", "true");
+    const qs = query.toString();
+    const response = await fetch(`${httpUrl}/api/rag/public-clouds${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders()
     });
@@ -809,6 +815,22 @@ export const openCloud = (storageKey, max = 10) => {
 };
 
 export const closeCloud = (storageKey) => saveOpenedClouds(getOpenedClouds().filter(k => k !== storageKey));
+
+// Lối tắt từ trang khác (vd. tab Phân vùng của Quản trị Định danh): mở phân vùng rồi chọn làm kho đang dùng khi về AI Workspace
+const PENDING_DOMAIN_KEY = "tara_select_domain";
+export const requestOpenDomain = (storageKey, max = 10) => {
+  openCloud(storageKey, max);
+  try { sessionStorage.setItem(PENDING_DOMAIN_KEY, storageKey); } catch { /* bỏ qua: chỉ không tự chọn kho */ }
+};
+export const takePendingDomain = () => {
+  try {
+    const key = sessionStorage.getItem(PENDING_DOMAIN_KEY);
+    sessionStorage.removeItem(PENDING_DOMAIN_KEY);
+    return key;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Quyền của người dùng trên một kho: ưu tiên trường `permission` do Backend trả về;

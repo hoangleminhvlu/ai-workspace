@@ -4,8 +4,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Archive, ArchiveRestore, Database, FolderKanban, Pencil, Plus, RefreshCw, Save, Trash2, UserMinus, UserPlus, Users } from 'lucide-react';
-import { identityAPI } from '../../services/api';
+import { Archive, ArchiveRestore, Database, FolderKanban, FolderOpen, Pencil, Plus, RefreshCw, Save, Trash2, UserMinus, UserPlus, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { identityAPI, requestOpenDomain } from '../../services/api';
 import { Button, Field, Modal, Notice, Section, controlCls, inputCls } from './shared';
 
 // Phân vùng làm việc iDragonCloud trên OpenLDAP: cn=<gidNumber>,ou=<Nhánh>,ou=<ORGID> (khóa là DN).
@@ -304,6 +305,7 @@ function ArchivesSection({ version, onNotice }) {
 }
 
 export default function CloudsPanel() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [filters, setFilters] = useState({ branch: '', lifecycle: '', q: '', include_templates: false });
   const [notice, setNotice] = useState(null);
@@ -463,6 +465,9 @@ export default function CloudsPanel() {
                   <td className="py-2.5 pr-0 text-right whitespace-nowrap">
                     {canManage && !c.template && (
                       <div className="inline-flex gap-1.5">
+                        {/* Lối tắt của quản trị viên: mở Kho của phân vùng (kể cả Private) trong AI Workspace, quyền quản trị */}
+                        <Button icon={FolderOpen} disabled={!!busy} title="Mở Kho Tri thức / Kho Dữ liệu của phân vùng trong AI Workspace"
+                          onClick={() => { requestOpenDomain(`${c.branch}/${c.gid_number}`); navigate('/'); }}>Mở Kho</Button>
                         <Button icon={Pencil} disabled={!!busy} onClick={() => setEditing(c)}>Sửa</Button>
                         <Button variant="ghostDanger" icon={Trash2} busy={busy === `recycle-${c.dn}`} disabled={!!busy} onClick={() => recycle(c)}>Thu hồi</Button>
                       </div>

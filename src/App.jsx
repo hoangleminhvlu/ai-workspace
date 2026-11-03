@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 
 // Mã phiên hội thoại (thread) mới: mỗi lần đăng nhập/đăng xuất hoặc đổi kho tri thức là một thread riêng,
@@ -133,6 +133,10 @@ export default function App() {
       const data = await iThunderAPI.getCollections();
       if (Array.isArray(data)) {
         setCollections(data);
+        // Lối tắt "Mở Kho" từ tab Phân vùng của Quản trị Định danh: chọn kho đó làm kho đang dùng
+        const pending = takePendingDomain();
+        const target = pending && data.find(c => c.storage_key === pending);
+        if (target) { setActiveDomain(target.storage_key); setActiveThreadId(newThreadId()); }
       }
     } catch (err) {
       console.warn("[iThunder Data] Không thể liên thông nạp dữ liệu thống kê phân vùng:", err);
@@ -1435,7 +1439,7 @@ export default function App() {
               {/* Kho của Tổ chức, rồi Kho của các phân vùng người dùng tham gia, cuối cùng là phân vùng Public tự mở */}
               {Array.isArray(collections) && collections.map((col, i) => {
                 const group = (c) => (c?.opened ? 'opened' : c?.scope === 'cloud' ? 'cloud' : 'org');
-                const header = group(col) !== group(collections[i - 1]) && { cloud: 'PHÂN VÙNG CỦA BẠN', opened: 'PHÂN VÙNG CÔNG KHAI ĐÃ MỞ' }[group(col)];
+                const header = group(col) !== group(collections[i - 1]) && { cloud: 'PHÂN VÙNG CỦA BẠN', opened: 'PHÂN VÙNG ĐÃ MỞ' }[group(col)];
                 return (
                 <React.Fragment key={col.storage_key}>
                 {header && (
@@ -1472,7 +1476,7 @@ export default function App() {
               <button onClick={() => setShowPublicClouds(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 mt-1 rounded-lg text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-hover transition-all">
                 <Globe size={13} />
-                <span>Mở phân vùng Public...</span>
+                <span>{userData.userRole === 'admin' ? 'Mở Kho phân vùng...' : 'Mở phân vùng Public...'}</span>
               </button>
 
             </div>
