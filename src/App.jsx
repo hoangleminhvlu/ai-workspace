@@ -1209,8 +1209,13 @@ export default function App() {
       const res = await iThunderAPI.registerUser(email, fullName);
       setIsLoading(false);
 
+      // Email đã có tài khoản định danh trên iThunder AI OS: không đăng ký mới.
+      // - JOIN_LINK_SENT: tài khoản của Tổ chức khác => Backend gửi liên kết gia nhập Tổ chức (vai trò Khách) tới Email;
+      // - ACCOUNT_EXISTS: đã có vai trò trong Tổ chức => đăng nhập bằng PassCode.
       if (res.status === "SUCCESS") {
-        setStatusMessage(res.message || "Gửi yêu cầu đăng ký tài khoản mới lên hệ thống thành công. Vui lòng đợi phê duyệt.");
+        setStatusMessage(res.code === "JOIN_LINK_SENT"
+          ? `${res.message} Hãy mở Email và bấm liên kết "Thêm tài khoản vào Tổ chức"; sau đó đăng nhập bằng PassCode được gửi kèm.`
+          : (res.message || "Gửi yêu cầu đăng ký tài khoản mới lên hệ thống thành công. Vui lòng đợi phê duyệt."));
         setEmail('');
         setFullName('');
       } else {
@@ -1226,6 +1231,7 @@ export default function App() {
               <UserPlus size={18} className="text-emerald-400" /> Đăng ký Tài khoản mới
             </h3>
             <p className="text-[11px] text-slate-400 mt-1">Khởi tạo hồ sơ định danh làm việc trên iThunder AI OS</p>
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">Đã có tài khoản ở Tổ chức khác? Nhập Email đó: hệ thống gửi liên kết để thêm tài khoản vào Tổ chức này.</p>
           </div>
 
           <form onSubmit={handleRegisterSubmit} className="space-y-3.5">

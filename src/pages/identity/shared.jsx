@@ -172,14 +172,18 @@ export const Modal = ({ title, onClose, children, width = 'max-w-lg' }) => (
 // Chọn vai trò + đơn vị (ghép thành "member:PROJ1"); groups là danh mục nhóm từ /api/identity/roles.
 // Quy tắc giống Backend: admin không gắn đơn vị; vai trò scoped (manager) bắt buộc đơn vị.
 // scopeUnits (Quản trị Đơn vị): chỉ chọn vai trò thường, đơn vị bắt buộc và nằm trong phạm vi được giao.
-export const RolePicker = ({ roles, groups, onAdd, disabled, exclude = [], scopeUnits = null, unitCatalog = [] }) => {
+// policy (assign_policy của /me/permissions; null: Quản trị toàn tổ chức): vai trò / đơn vị Quản trị Đơn vị, Trưởng nhóm
+// được gán — { roles, units, unitless_roles }. Backend vẫn kiểm tra lại theo từng người dùng đích.
+export const RolePicker = ({ roles, groups, onAdd, disabled, exclude = [], scopeUnits = null, unitCatalog = [], policy = null }) => {
   const [role, setRole] = React.useState('');
   const [unit, setUnit] = React.useState('');
-  const scoped = Array.isArray(scopeUnits);
+  const scoped = Array.isArray(scopeUnits) || !!policy;
+  const allowedUnits = policy ? policy.units : (scopeUnits || []);
   const roleInfo = (roles || []).find(r => r.role === role);
-  const choices = (roles || []).filter(r => !scoped || (r.role !== 'admin' && !r.scoped));
+  const choices = (roles || []).filter(r => policy ? policy.roles.includes(r.role) : (!scoped || (r.role !== 'admin' && !r.scoped)));
   const unitAllowed = role && role !== 'admin' && role !== 'suspended';
-  const unitRequired = scoped || roleInfo?.scoped;
+  const unitOptional = policy ? policy.unitless_roles.includes(role) : false;
+  const unitRequired = (scoped && !unitOptional) || roleInfo?.scoped;
   // Gợi ý: đơn vị đang dùng trong ou của Tổ chức (bộ môn, khóa học...) + đơn vị đang dùng cho vai trò này
   const blocked = role === 'suspended';
   const units = [...new Set([
@@ -192,16 +196,20 @@ export const RolePicker = ({ roles, groups, onAdd, disabled, exclude = [], scope
 
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <select aria-label="Vai trò" value={role} onChange={e => { setRole(e.target.value); setUnit(scoped && scopeUnits.length === 1 ? scopeUnits[0] : ''); }} disabled={disabled} className={`${controlCls} w-auto`}>
+      <select aria-label="Vai trò" value={role} onChange={e => {
+        const next = e.target.value;
+        setRole(next);
+        setUnit(scoped && allowedUnits.length === 1 && !(policy && policy.unitless_roles.includes(next)) ? allowedUnits[0] : '');
+      }} disabled={disabled} className={`${controlCls} w-auto`}>
         <option value="">— Chọn vai trò —</option>
         {choices.map(r => <option key={r.role} value={r.role}>{r.label} ({r.role})</option>)}
-        <option value="registered">Đăng ký (registered)</option>
+        {!scoped && <option value="registered">Đăng ký (registered)</option>}
         {!scoped && <option value="suspended">Tạm khóa tài khoản (suspended)</option>}
       </select>
       {scoped ? (
-        <select aria-label="Đơn vị" value={unit} onChange={e => setUnit(e.target.value)} disabled={disabled || !role} className={`${controlCls} w-auto`}>
-          <option value="">— Đơn vị —</option>
-          {scopeUnits.map(u => <option key={u} value={u}>{u}</option>)}
+        <select aria-label="Đơn vị" value={unit} onChange={e => setUnit(e.target.value)} disabled={disabled || !role || (unitOptional && !allowedUnits.length)} className={`${controlCls} w-auto`}>
+          <option value="">{unitOptional ? '— Không đơn vị —' : '— Đơn vị —'}</option>
+          {allowedUnits.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
       ) : (
         <>
@@ -219,8 +227,10 @@ export const RolePicker = ({ roles, groups, onAdd, disabled, exclude = [], scope
 };
 
 // Giá trị ou mà người gọi được gỡ: Quản trị Đơn vị chỉ gỡ vai trò thường thuộc đơn vị của mình
-export const canTouchRole = (roleValue, scopeUnits) => {
-  if (!Array.isArray(scopeUnits)) return true;
+export const canTouchRole = (roleValue, scopeUnits, policy = null) => {
   const [, role, ...rest] = roleValue.split(':');
-  return role !== 'admin' && role !== 'manager' && role !== 'suspended' && scopeUnits.includes(rest.join(':'));
+  const unit = rest.join(':');
+  if (policy) return policy.roles.includes(role) && (unit ? policy.units.includes(unit) : policy.unitless_roles.includes(role));
+  if (!Array.isArray(scopeUnits)) return true;
+  return role !== 'admin' && role !== 'manager' && role !== 'suspended' && scopeUnits.includes(unit);
 };

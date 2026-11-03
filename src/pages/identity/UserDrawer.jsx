@@ -15,7 +15,7 @@ const profileForm = (u) => ({
 });
 
 // Ngăn chi tiết một người dùng: hồ sơ, vai trò, email, bảo mật (PassCode/PassTime/FaceID) và thu hồi
-export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUnits = null, onClose, onChanged }) {
+export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUnits = null, assignPolicy = null, onClose, onChanged }) {
   const [user, setUser] = useState(null);
   const [form, setForm] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -130,11 +130,11 @@ export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUn
                 <div className="flex flex-wrap gap-1.5">
                   {user.roles.map(r => (
                     <RoleChip key={r.value} role={r} disabled={!!busy}
-                      onRemove={can('identity.roles.assign') && user.roles.length > 1 && canTouchRole(r.value, scopeUnits) ? () => run('roles', () => identityAPI.changeRoles(uid, [], [r.value]), `Gỡ vai trò ${r.value}?`) : null} />
+                      onRemove={can('identity.roles.assign') && user.roles.length > 1 && canTouchRole(r.value, scopeUnits, assignPolicy) ? () => run('roles', () => identityAPI.changeRoles(uid, [], [r.value]), `Gỡ vai trò ${r.value}?`) : null} />
                   ))}
                 </div>
                 {can('identity.roles.assign') && (
-                  <RolePicker roles={catalog?.roles} groups={catalog?.groups} unitCatalog={catalog?.units} scopeUnits={scopeUnits} disabled={!!busy} exclude={user.roles.map(r => r.value)}
+                  <RolePicker roles={catalog?.roles} groups={catalog?.groups} unitCatalog={catalog?.units} scopeUnits={scopeUnits} policy={assignPolicy} disabled={!!busy} exclude={user.roles.map(r => r.value)}
                     onAdd={(value) => run('roles', () => identityAPI.changeRoles(uid, [value], []))} />
                 )}
               </Section>

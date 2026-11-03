@@ -67,7 +67,7 @@ function StepUpDialog({ request, minutes, onDone }) {
 export default function IdentityManager() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [me, setMe] = useState(null);           // { user_id, user_role, permissions, scope_units, role_changed }
+  const [me, setMe] = useState(null);           // { user_id, user_role, permissions, scope_units, led_clouds, assign_policy, role_changed }
   const [catalog, setCatalog] = useState(null); // /api/identity/roles
   const [pool, setPool] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -75,6 +75,14 @@ export default function IdentityManager() {
 
   const permissions = me?.permissions || [];
   const scopeUnits = me?.scope_units ?? null;
+  const assignPolicy = me?.assign_policy ?? null;
+  const ledClouds = me?.led_clouds || [];
+  // Phạm vi quản trị (không phải Quản trị toàn tổ chức): Quản trị Đơn vị và/hoặc Trưởng nhóm phân vùng Projects
+  const scopeNotice = Array.isArray(scopeUnits) && (scopeUnits.length > 0 || ledClouds.length > 0) && [
+    scopeUnits.length > 0 && `Bạn là Quản trị Đơn vị: ${scopeUnits.join(', ')}. Bạn quản trị người dùng có vai trò thuộc đơn vị này và cấp vai trò cho người dùng mới gia nhập (chỉ có vai trò Khách – visitor).`,
+    ledClouds.length > 0 && `Bạn là Trưởng nhóm của ${ledClouds.map(c => `${c.name} (${c.key})`).join(', ')}: bạn đổi được vai trò của ${me.scope_members_count} thành viên trong các phân vùng này, với vai trò không cao hơn vai trò "${me.user_role}" của bạn.`,
+    'Bạn chỉ thấy các phân vùng mình tham gia; nhật ký chỉ gồm thao tác của bạn.',
+  ].filter(Boolean).join(' ');
   const tabs = TABS.filter(t => !t.permission || permissions.includes(t.permission));
   const requested = searchParams.get('tab');
   const active = tabs.find(t => t.key === requested)?.key || tabs[0]?.key || 'me';
@@ -147,10 +155,8 @@ export default function IdentityManager() {
         {me?.role_changed && (
           <Notice notice={{ type: 'info', text: `Vai trò của bạn trên OpenLDAP hiện là "${me.user_role}" (khác lúc đăng nhập). Đăng nhập lại để Workspace áp dụng vai trò mới.` }} />
         )}
-        {Array.isArray(scopeUnits) && active !== 'me' && (
-          <Notice notice={{ type: 'info', text: `Bạn là Quản trị Đơn vị: ${scopeUnits.join(', ') || '(chưa được giao đơn vị)'}. Bạn chỉ thấy và quản trị người dùng có vai trò thuộc đơn vị này, chỉ thấy các phân vùng mình tham gia; nhật ký chỉ gồm thao tác của bạn.` }} />
-        )}
-        {me && active === 'users' && <UsersPanel catalog={catalog} permissions={permissions} actorId={me.user_id} scopeUnits={scopeUnits} pool={pool} onCatalogChanged={refreshCatalog} unit={unitFilter} onUnitChange={setUnitFilter} />}
+        {scopeNotice && active !== 'me' && <Notice notice={{ type: 'info', text: scopeNotice }} />}
+        {me && active === 'users' && <UsersPanel catalog={catalog} permissions={permissions} actorId={me.user_id} scopeUnits={scopeUnits} assignPolicy={assignPolicy} pool={pool} onCatalogChanged={refreshCatalog} unit={unitFilter} onUnitChange={setUnitFilter} />}
         {me && active === 'clouds' && <CloudsPanel />}
         {me && active === 'units' && <UnitsPanel onOpenUnit={setUnitFilter} />}
         {me && active === 'roles' && <RolesPanel catalog={catalog} />}

@@ -76,7 +76,7 @@ function ProvisionModal({ catalog, permissions, scopeUnits, onClose, onDone }) {
 }
 
 // Danh sách người dùng của tổ chức: tìm kiếm, lọc, phân trang; bấm một dòng để mở hồ sơ chi tiết
-export default function UsersPanel({ catalog, permissions, actorId, scopeUnits = null, pool, onCatalogChanged, unit = '', onUnitChange }) {
+export default function UsersPanel({ catalog, permissions, actorId, scopeUnits = null, assignPolicy = null, pool, onCatalogChanged, unit = '', onUnitChange }) {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [role, setRole] = useState('');
@@ -202,7 +202,7 @@ export default function UsersPanel({ catalog, permissions, actorId, scopeUnits =
       </div>
 
       {openUid && (
-        <UserDrawer uid={openUid} catalog={catalog} permissions={permissions} actorId={actorId} scopeUnits={scopeUnits}
+        <UserDrawer uid={openUid} catalog={catalog} permissions={permissions} actorId={actorId} scopeUnits={scopeUnits} assignPolicy={assignPolicy}
           onClose={() => setOpenUid(null)}
           onChanged={(user, res) => {
             load(); onCatalogChanged();
