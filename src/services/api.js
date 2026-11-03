@@ -197,17 +197,34 @@ export const iThunderAPI = {
 
   // Thống kê dashboard các kho tri thức được phân quyền (RBAC).
   // Vai trò được Backend đọc từ JWT; mỗi kho trả về kèm trường permission: 'manage' | 'read'
+  // Kèm các phân vùng (Public) người dùng tự mở: Backend kiểm tra lại quyền, khóa không còn hợp lệ bị bỏ qua và được gỡ ở đây
   getCollections: async () => {
     try {
-      const response = await fetch(`${httpUrl}/api/rag/collections`, {
+      const opened = getOpenedClouds();
+      const qs = opened.length ? `?open=${encodeURIComponent(opened.join(","))}` : "";
+      const response = await fetch(`${httpUrl}/api/rag/collections${qs}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
-      return await parseResponse(response);
+      const data = await parseResponse(response);
+      if (Array.isArray(data) && opened.length) {
+        const valid = new Set(data.filter(c => c.opened).map(c => c.storage_key));
+        saveOpenedClouds(opened.filter(key => valid.has(key)));
+      }
+      return data;
     } catch (error) {
       console.error("[iThunder API] Lỗi lấy danh mục kho tri thức pgvector:", error);
       throw error;
     }
+  },
+
+  // Phân vùng Public người dùng không tham gia nhưng được khai thác: { clouds: [{ storage_key, display_name, cloud, permission }], max_opened }
+  listPublicClouds: async (q = "") => {
+    const response = await fetch(`${httpUrl}/api/rag/public-clouds${q ? `?q=${encodeURIComponent(q)}` : ""}`, {
+      method: "GET",
+      headers: getAuthHeaders()
+    });
+    return await parseResponse(response);
   },
 
   // Trích xuất danh sách file độc bản trong một phân vùng cụ thể
@@ -755,6 +772,43 @@ export const systemAPI = {
   // { file, lines: [{ level, text }] } - chỉ quản trị viên
   getLogs: (lines = 100) => systemGet(`/logs?lines=${encodeURIComponent(lines)}`, "truy vấn nhật ký hệ thống")
 };
+
+/**
+ * Phân vùng (Public) người dùng tự mở thêm vào danh mục Kho Tri thức: tiện ích riêng của từng người trên máy trạm này
+ * (localStorage theo uidNumber). Quyền luôn được Backend kiểm tra lại ở mỗi lần tải danh mục.
+ */
+const openedCloudsKey = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("tara_user") || "{}");
+    return user?.userId ? `tara_opened_clouds:${user.userId}` : null;
+  } catch {
+    return null;
+  }
+};
+
+export const getOpenedClouds = () => {
+  const key = openedCloudsKey();
+  if (!key) return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(list) ? list.filter(k => typeof k === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveOpenedClouds = (list) => {
+  const key = openedCloudsKey();
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify([...new Set(list)])); } catch { /* trình duyệt chặn lưu trữ: chỉ mất tiện ích */ }
+};
+
+export const openCloud = (storageKey, max = 10) => {
+  const list = getOpenedClouds().filter(k => k !== storageKey);
+  saveOpenedClouds([...list, storageKey].slice(-max));   // vượt giới hạn: bỏ phân vùng mở lâu nhất
+};
+
+export const closeCloud = (storageKey) => saveOpenedClouds(getOpenedClouds().filter(k => k !== storageKey));
 
 /**
  * Quyền của người dùng trên một kho: ưu tiên trường `permission` do Backend trả về;

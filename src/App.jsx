@@ -10,11 +10,12 @@ import {
   UserPlus, CornerDownLeft, Sparkles, FolderGit, MessageSquare,
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
-  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban
+  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud } from './services/api';
+import PublicCloudsDialog from './pages/PublicCloudsDialog';
 
 // Mã phiên hội thoại (thread) mới: mỗi lần đăng nhập/đăng xuất hoặc đổi kho tri thức là một thread riêng,
 // tránh ghi vào thread của người dùng trước (Backend trả 403) và để danh sách thread theo kho khớp nội dung
@@ -100,6 +101,7 @@ export default function App() {
 
   // Kho dữ liệu RAG & Chat
   const [collections, setCollections] = useState([]);
+  const [showPublicClouds, setShowPublicClouds] = useState(false);   // hộp thoại mở Kho của phân vùng Public
   const [messages, setMessages] = useState([]);
   const [inputPrompt, setInputPrompt] = useState('');
 
@@ -736,6 +738,21 @@ export default function App() {
         content: "🔀 **[Hệ thống]:** Đã chuyển sang Kho tri thức `" + col.display_name + "`. Các câu hỏi tiếp theo thuộc một phiên hội thoại mới."
       }]);
     }
+  };
+
+  // Mở Kho của một phân vùng Public (chỉ khai thác): thêm vào danh mục kho ở thanh bên rồi chuyển sang kho đó
+  const handleOpenPublicCloud = async (col, maxOpened) => {
+    openCloud(col.storage_key, maxOpened || 10);
+    setShowPublicClouds(false);
+    await refreshCollections();
+    handleSelectDomain(col);
+  };
+
+  // Gỡ phân vùng Public đã mở khỏi danh mục; đang dùng kho đó thì quay về kho Cá nhân
+  const handleClosePublicCloud = async (col) => {
+    closeCloud(col.storage_key);
+    if (activeDomain === col.storage_key) handleSelectDomain({ storage_key: "Personal", display_name: "Cá nhân" });
+    await refreshCollections();
   };
 
   // =========================================================================
@@ -1415,16 +1432,20 @@ export default function App() {
             <div className="flex flex-col gap-1">
 
               {/* Thêm rào chắn an toàn Array.isArray() */}
-              {/* Kho của Tổ chức trước, rồi Kho của các phân vùng (Dự án, Thực tập, Hội đồng) người dùng tham gia */}
-              {Array.isArray(collections) && collections.map((col, i) => (
+              {/* Kho của Tổ chức, rồi Kho của các phân vùng người dùng tham gia, cuối cùng là phân vùng Public tự mở */}
+              {Array.isArray(collections) && collections.map((col, i) => {
+                const group = (c) => (c?.opened ? 'opened' : c?.scope === 'cloud' ? 'cloud' : 'org');
+                const header = group(col) !== group(collections[i - 1]) && { cloud: 'PHÂN VÙNG CỦA BẠN', opened: 'PHÂN VÙNG CÔNG KHAI ĐÃ MỞ' }[group(col)];
+                return (
                 <React.Fragment key={col.storage_key}>
-                {col.scope === 'cloud' && collections[i - 1]?.scope !== 'cloud' && (
-                  <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mt-2 px-1">PHÂN VÙNG CỦA BẠN</span>
+                {header && (
+                  <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mt-2 px-1">{header}</span>
                 )}
+                <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleSelectDomain(col)}
                   title={col.cloud ? `${col.cloud.name} – ${col.cloud.description}` : undefined}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === col.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}
+                  className={`flex-1 min-w-0 flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === col.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     {col.scope === 'cloud'
@@ -1437,8 +1458,22 @@ export default function App() {
                   </span>
                   <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono shrink-0">{col.file_count} tệp</span>
                 </button>
+                {col.opened && (
+                  <button onClick={() => handleClosePublicCloud(col)} title="Gỡ khỏi danh mục" aria-label={`Gỡ ${col.cloud?.name || col.storage_key} khỏi danh mục`}
+                    className="p-1.5 rounded-md text-fg-subtle hover:text-red-600 dark:hover:text-red-400 hover:bg-hover shrink-0">
+                    <X size={12} />
+                  </button>
+                )}
+                </div>
                 </React.Fragment>
-              ))}
+                );
+              })}
+
+              <button onClick={() => setShowPublicClouds(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 mt-1 rounded-lg text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-hover transition-all">
+                <Globe size={13} />
+                <span>Mở phân vùng Public...</span>
+              </button>
 
             </div>
           </div>
@@ -1900,6 +1935,13 @@ export default function App() {
         </div>
       </aside>
 
+      {showPublicClouds && (
+        <PublicCloudsDialog
+          openedKeys={collections.filter(c => c.opened || c.scope === 'cloud').map(c => c.storage_key)}
+          onOpen={(col, maxOpened) => collections.some(c => c.storage_key === col.storage_key)
+            ? (setShowPublicClouds(false), handleSelectDomain(col)) : handleOpenPublicCloud(col, maxOpened)}
+          onClose={() => setShowPublicClouds(false)} />
+      )}
     </div>
   );
 }
