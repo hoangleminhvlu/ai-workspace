@@ -17,7 +17,9 @@ export default function MembersDialog({ conversation, me, storages, onClose, onL
   const editable = conversation.kind !== 'direct';
   const manualMembers = editable && !conversation.ldap_unit;
   const [title, setTitle] = useState(conversation.title || '');
-  const [domain, setDomain] = useState(conversation.metadata?.domain || 'Public');
+  const [domain, setDomain] = useState(conversation.metadata?.domain || conversation.ldap_unit || 'Public');
+  // Hội thoại gắn phân vùng: thêm Kho Tri thức của phân vùng vào danh sách kho
+  const domainOptions = conversation.ldap_unit ? [conversation.ldap_unit, ...storages] : storages;
   const [adding, setAdding] = useState([]);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState(null);
@@ -66,7 +68,7 @@ export default function MembersDialog({ conversation, me, storages, onClose, onL
           </Field>
           <Field label="Kho Tri thức (@ai)">
             <select value={domain} onChange={e => setDomain(e.target.value)} className={inputCls}>
-              {storages.map(s => <option key={s} value={s}>{s}</option>)}
+              {domainOptions.map(s => <option key={s} value={s}>{s === conversation.ldap_unit ? `Kho của phân vùng ${s}` : s}</option>)}
             </select>
           </Field>
           <Button icon={Save} busy={busy === 'save'} onClick={save}>Lưu</Button>

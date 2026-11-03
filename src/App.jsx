@@ -10,7 +10,7 @@ import {
   UserPlus, CornerDownLeft, Sparkles, FolderGit, MessageSquare,
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
-  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare
+  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -1415,21 +1415,29 @@ export default function App() {
             <div className="flex flex-col gap-1">
 
               {/* Thêm rào chắn an toàn Array.isArray() */}
-              {Array.isArray(collections) && collections.map((col) => (
-                <button 
-                  key={col.storage_key}
+              {/* Kho của Tổ chức trước, rồi Kho của các phân vùng (Dự án, Thực tập, Hội đồng) người dùng tham gia */}
+              {Array.isArray(collections) && collections.map((col, i) => (
+                <React.Fragment key={col.storage_key}>
+                {col.scope === 'cloud' && collections[i - 1]?.scope !== 'cloud' && (
+                  <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mt-2 px-1">PHÂN VÙNG CỦA BẠN</span>
+                )}
+                <button
                   onClick={() => handleSelectDomain(col)}
+                  title={col.cloud ? `${col.cloud.name} – ${col.cloud.description}` : undefined}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === col.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Database size={13} className={activeDomain === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />
-                    <span>{col.display_name}</span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    {col.scope === 'cloud'
+                      ? <FolderKanban size={13} className={`shrink-0 ${activeDomain === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'}`} />
+                      : <Database size={13} className={activeDomain === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />}
+                    <span className="truncate">{col.scope === 'cloud' ? col.cloud?.name || col.display_name : col.display_name}</span>
                     {getStoragePermission(col, userData.userRole) === 'read' && (
                       <Eye size={11} className="text-amber-600 dark:text-amber-400" title="Chỉ khai thác" aria-label="Chỉ khai thác" />
                     )}
                   </span>
-                  <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono">{col.file_count} tệp</span>
+                  <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono shrink-0">{col.file_count} tệp</span>
                 </button>
+                </React.Fragment>
               ))}
 
             </div>

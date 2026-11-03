@@ -26,6 +26,8 @@ export default function NewConversationDialog({ info, onClose, onCreated }) {
   const [domain, setDomain] = useState(info.storages.includes('Public') ? 'Public' : info.storages[0] || '');
   const [units, setUnits] = useState(null);
   const [unit, setUnit] = useState('');
+  // Hội thoại gắn phân vùng: mặc định Trợ lý AI dùng Kho Tri thức của chính phân vùng (khóa "<Nhánh>/<gid>")
+  const [ldapDomain, setLdapDomain] = useState('__unit__');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
 
@@ -43,7 +45,7 @@ export default function NewConversationDialog({ info, onClose, onCreated }) {
     const member_ids = people.map(p => p.user_id);
     if (tab === 'direct') return { kind: 'direct', member_ids };
     if (tab === 'group') return { kind: 'group', title, member_ids, domain };
-    if (tab === 'ldap') return { kind: 'group', ldap_unit: unit, title, domain };
+    if (tab === 'ldap') return { kind: 'group', ldap_unit: unit, title, domain: ldapDomain === '__unit__' ? unit : ldapDomain };
     return { kind: 'assistant', title, member_ids, domain };
   };
   const ready = tab === 'direct' ? people.length === 1 : tab === 'group' ? people.length > 0 && title.trim() : tab === 'ldap' ? !!unit : true;
@@ -102,9 +104,16 @@ export default function NewConversationDialog({ info, onClose, onCreated }) {
         <Field label="Kho Tri thức khi gọi Trợ lý AI"
           hint={tab === 'assistant' && people.length === 0 ? 'Hội thoại riêng: Trợ lý AI dùng được mọi kho của bạn (kể cả Personal) và công cụ MCP.'
             : 'Hội thoại nhiều người: Trợ lý AI chỉ dùng các kho mà mọi thành viên đều được đọc, không dùng kho Personal, không gọi công cụ MCP.'}>
-          <select value={domain} onChange={e => setDomain(e.target.value)} className={inputCls}>
-            {info.storages.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          {tab === 'ldap' ? (
+            <select value={ldapDomain} onChange={e => setLdapDomain(e.target.value)} className={inputCls}>
+              <option value="__unit__">Kho của phân vùng {unit}</option>
+              {info.storages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            <select value={domain} onChange={e => setDomain(e.target.value)} className={inputCls}>
+              {info.storages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
         </Field>
       )}
 

@@ -188,13 +188,15 @@ export default function CloudsPanel() {
         supervisors: parseUids(form.supervisors), members: parseUids(form.members),
       });
       if (res?.status === 'SUCCESS') {
-        setNotice({ type: 'success', text: res.message }); setForm(EMPTY_FORM); setShowCreate(false); await load();
+        // Cấp phát trên OpenLDAP đã xong; chưa đăng ký được Kho Tri thức (PostgreSQL) thì chỉ cảnh báo
+        setNotice(res.knowledge_warning ? { type: 'error', text: `${res.message} ${res.knowledge_warning}` } : { type: 'success', text: res.message });
+        setForm(EMPTY_FORM); setShowCreate(false); await load();
       } else setNotice({ type: 'error', text: res?.detail || 'Không cấp phát được phân vùng.' });
     } finally { setBusy(''); }
   };
 
   const recycle = async (c) => {
-    const typed = window.prompt(`Thu hồi phân vùng ${c.branch}/${c.gid_number} về Template?\nThành viên, trưởng nhóm, người hướng dẫn sẽ bị gỡ; Kho Dữ liệu ${c.folder} phải đã được lưu trữ hoặc dọn sạch.\n\nNhập lại mã phân vùng "${c.name}" để xác nhận:`);
+    const typed = window.prompt(`Thu hồi phân vùng ${c.branch}/${c.gid_number} về Template?\nThành viên, trưởng nhóm, người hướng dẫn sẽ bị gỡ; Kho Dữ liệu ${c.folder} phải đã được lưu trữ hoặc dọn sạch; Kho Tri thức ${c.collection} được tự động lưu trữ.\n\nNhập lại mã phân vùng "${c.name}" để xác nhận:`);
     if (typed === null) return;
     setBusy(`recycle-${c.dn}`); setNotice(null);
     try {

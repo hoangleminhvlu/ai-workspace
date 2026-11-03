@@ -6,8 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  FolderGit, Database, FileText, HardDrive, RefreshCw, Trash2, 
-  ArrowLeft, Search, CheckCircle, AlertCircle 
+  FolderGit, Database, FileText, HardDrive, RefreshCw, Trash2,
+  ArrowLeft, Search, CheckCircle, AlertCircle, FolderKanban
 } from 'lucide-react';
 import iThunderAPI, { getStoragePermission } from '../services/api';
 
@@ -130,19 +130,27 @@ export default function KnowledgeManager() {
           <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mb-1">CÁC PHÂN VÙNG HỆ THỐNG</span>
 
           {/* CRITICAL FIX: Thêm toán tử điều kiện an toàn Array.isArray() trước khi .map */}
-          {Array.isArray(collections) && collections.map((col) => (
-            <button
-              key={col.storage_key}
-              onClick={() => handleCollectionChange(col)}
-              className={`w-full text-left px-3 py-3 rounded-xl border text-xs font-medium transition-all flex items-center justify-between ${activeCollection?.storage_key === col.storage_key ? 'bg-blue-600/15 border-blue-500/50 text-fg-strong shadow-md' : 'bg-transparent border-transparent text-fg-muted hover:bg-hover'}`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Database size={14} className={activeCollection?.storage_key === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />
-                <span className="truncate">{col.display_name}</span>
-              </div>
-              <span className="text-[10px] bg-elevated px-1.5 py-0.5 rounded font-mono text-fg-subtle shrink-0">{col.file_count} f</span>
-            </button>
-          ))}
+          {Array.isArray(collections) && collections.map((col, i) => {
+            const Icon = col.scope === 'cloud' ? FolderKanban : Database;
+            return (
+              <React.Fragment key={col.storage_key}>
+                {col.scope === 'cloud' && collections[i - 1]?.scope !== 'cloud' && (
+                  <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mt-3 mb-1">PHÂN VÙNG DỰ ÁN / THỰC TẬP / HỘI ĐỒNG</span>
+                )}
+                <button
+                  onClick={() => handleCollectionChange(col)}
+                  title={col.cloud ? `${col.storage_key} · ${col.cloud.description}` : undefined}
+                  className={`w-full text-left px-3 py-3 rounded-xl border text-xs font-medium transition-all flex items-center justify-between ${activeCollection?.storage_key === col.storage_key ? 'bg-blue-600/15 border-blue-500/50 text-fg-strong shadow-md' : 'bg-transparent border-transparent text-fg-muted hover:bg-hover'}`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <Icon size={14} className={`shrink-0 ${activeCollection?.storage_key === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'}`} />
+                    <span className="truncate">{col.display_name}</span>
+                  </div>
+                  <span className="text-[10px] bg-elevated px-1.5 py-0.5 rounded font-mono text-fg-subtle shrink-0">{col.file_count} f</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
 
         </aside>
 
