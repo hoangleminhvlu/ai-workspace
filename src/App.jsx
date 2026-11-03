@@ -67,6 +67,8 @@ export default function App() {
   const [clientIp, setClientIp] = useState('127.0.0.1');
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  // PassCode đúng nhưng tài khoản chưa thuộc Tổ chức: { token, message, orgName, sent } để đề nghị đăng ký trở thành Khách
+  const [joinOffer, setJoinOffer] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFaceProcessing, setIsFaceProcessing] = useState(false);
 
@@ -435,12 +437,17 @@ export default function App() {
           setUserData(sessionUser);
           setActiveThreadId(newThreadId());
           setViewState('WORKSPACE');
+        } else if (res.status === "JOIN_REQUIRED") {
+          // Kênh WebSocket xác thực PassCode: tài khoản chưa thuộc Tổ chức
+          stopWebcamHardware();
+          setJoinOffer({ token: res.join_token, message: res.message, orgName: res.org_name, sent: false });
+          setViewState('LOGIN');
         } else if (res.status === "BAD_IMAGE" || res.status === "FAIL" || res.status === "ERROR") {
           setErrorMessage(res.message);
           faceFailCountRef.current += 1;
 
           // Lỗi PassCode/hệ thống: dừng ngay. Lỗi tạm thời (không thấy mặt, ảnh mờ, chưa khớp): tiếp tục quét đến giới hạn
-          const fatal = res.status === "ERROR" || res.code === "ACCOUNT_SUSPENDED" || /passcode/i.test(res.message || "");
+          const fatal = res.status === "ERROR" || res.code === "ACCOUNT_SUSPENDED" || res.code === "JOIN_REQUIRED" || /passcode/i.test(res.message || "");
           if (fatal || faceFailCountRef.current >= MAX_FACE_ATTEMPTS) {
             stopWebcamHardware();
             setFaceScanStopped(true);
@@ -510,10 +517,22 @@ export default function App() {
     initWebSocketConnection(() => setTimeout(() => startWebcamHardware(), 300));
   };
 
+  // Người dùng đồng ý trở thành Khách: Backend gửi liên kết xác nhận tới Email đăng ký của tài khoản
+  const acceptJoinOffer = async () => {
+    if (!joinOffer?.token) return;
+    setIsLoading(true);
+    setErrorMessage('');
+    const res = await iThunderAPI.requestJoin(joinOffer.token);
+    setIsLoading(false);
+    if (res.status === "SUCCESS") setJoinOffer({ ...joinOffer, sent: true, message: res.message });
+    else setErrorMessage(res.message || "Không gửi được yêu cầu trở thành Khách của Tổ chức.");
+  };
+
   const handlePasscodeSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage('');
+    setJoinOffer(null);
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -538,6 +557,11 @@ export default function App() {
         setUserData(sessionUser);
         setActiveThreadId(newThreadId());
         setViewState('WORKSPACE'); // Chuyển thẳng trang
+      }
+      else if (res.status === "JOIN_REQUIRED") {
+        // PassCode đúng nhưng chưa là thành viên của Tổ chức: đề nghị đăng ký trở thành Khách (xác nhận qua Email)
+        setPasscode('');
+        setJoinOffer({ token: res.join_token, message: res.message, orgName: res.org_name, sent: false });
       }
       else if (res.status === "REQUIRE_FACEID") {
         // LUỒNG BẮT BUỘC QUÉT FACEID: Kích hoạt kết nối và bật camera quét
@@ -1331,6 +1355,31 @@ export default function App() {
               </div>
             </div>
 
+            {joinOffer ? (
+              // PassCode đúng nhưng chưa thuộc Tổ chức: đề nghị đăng ký trở thành Khách (liên kết xác nhận gửi qua Email)
+              <div className="space-y-4">
+                <div className={`p-3.5 border text-xs rounded-xl flex items-start gap-2 leading-relaxed font-medium ${joinOffer.sent ? 'bg-emerald-950/40 border-emerald-500/60 text-emerald-200' : 'bg-amber-950/40 border-amber-500/60 text-amber-100'}`}>
+                  {joinOffer.sent ? <ShieldCheck size={14} className="shrink-0 mt-0.5 text-emerald-400" /> : <UserPlus size={14} className="shrink-0 mt-0.5 text-amber-400" />}
+                  <span>{joinOffer.message}</span>
+                </div>
+                {errorMessage && (
+                  <div className="p-3.5 bg-red-950/40 border border-red-500/60 text-red-200 text-xs rounded-xl flex items-start gap-2 leading-relaxed font-medium">
+                    <CircleAlert size={14} className="shrink-0 mt-0.5 text-red-400" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+                {!joinOffer.sent && (
+                  <button type="button" onClick={acceptJoinOffer} disabled={isLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-extrabold text-sm rounded-xl py-3.5 shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-wider">
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : <span>Đăng ký trở thành Khách</span>}
+                  </button>
+                )}
+                <button type="button" onClick={() => { setJoinOffer(null); setErrorMessage(''); }}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-2">
+                  <CornerDownLeft size={13} /> {joinOffer.sent ? 'Quay lại đăng nhập' : 'Không, quay lại'}
+                </button>
+              </div>
+            ) : (
             <form onSubmit={handlePasscodeSubmit} className="space-y-4">
               <div className="flex flex-col gap-2">
                 {/* TĂNG KÍCH THƯỚC LABEL VÀ CHUYỂN SANG MÀU CYAN ĐỂ ĐỒNG BỘ THƯƠNG HIỆU */}
@@ -1363,6 +1412,7 @@ export default function App() {
                 {isLoading ? <Loader2 size={16} className="animate-spin" /> : <span>Xác thực Định danh</span>}
               </button>
             </form>
+            )}
 
             {/* TĂNG ĐỘ RÕ NÉT VÀ ĐỔI MÀU HOVER CỦA HAI NÚT TASK PHỤ */}
             <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-800/80 text-xs font-semibold text-slate-300">

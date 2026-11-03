@@ -116,6 +116,26 @@ export const iThunderAPI = {
     }
   },
 
+  // Tài khoản hợp lệ (PassCode đúng) nhưng chưa thuộc Tổ chức: /api/auth/login trả JOIN_REQUIRED kèm join_token.
+  // Người dùng đồng ý => Backend gửi liên kết xác nhận trở thành Khách (visitor) tới Email đăng ký của tài khoản.
+  requestJoin: async (joinToken) => {
+    try {
+      const response = await fetch(`${httpUrl}/api/auth/join-request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ join_token: joinToken })
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        return { status: "FAIL", message: describeError(errData, response.status) };
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("[iThunder API] Lỗi gửi yêu cầu trở thành Khách của Tổ chức:", error);
+      return { status: "FAIL", message: "Có lỗi kết nối Gateway khi gửi yêu cầu trở thành Khách." };
+    }
+  },
+
   // --- QUẢN LÝ PHIÊN LÀM VIỆC VÀ LỊCH SỬ CHAT ---
   // Định danh người dùng do Backend lấy từ JWT; không cần (và không nên) gửi user_id
 

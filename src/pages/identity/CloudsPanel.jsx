@@ -20,9 +20,12 @@ const LIFECYCLE_CLS = {
   Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50',
 };
 
-// "1001, 1002 1003" => ["1001", "1002", "1003"]
-const parseUids = (text) => [...new Set(String(text || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
-const badUids = (text) => parseUids(text).filter(u => !/^\d+$/.test(u));
+// Trưởng nhóm (iDCloudPrimaryMember), người hướng dẫn (iDCloudSupervisor), thành viên (memberUid) lưu mã định danh
+// OwnerID (iDAccountOwnerID) của người dùng, không phải uidNumber. "NV001, 2174802010123" => ["NV001", "2174802010123"]
+const OWNER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$/;
+const parseIds = (text) => [...new Set(String(text || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+const badIds = (text) => parseIds(text).filter(u => !OWNER_ID_RE.test(u));
+const badId = (value) => !!String(value || '').trim() && !OWNER_ID_RE.test(String(value).trim());
 
 const StatusBadges = ({ status, visibility, lifecycle }) => (
   <div className="flex flex-wrap gap-1">
@@ -52,13 +55,13 @@ function EditDialog({ cloud, data, onClose, onSaved }) {
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const invalid = badUids(form.supervisors).length > 0 || (form.primary_member && !/^\d+$/.test(form.primary_member));
+  const invalid = badIds(form.supervisors).length > 0 || badId(form.primary_member);
 
   const save = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      const patch = { ...form, supervisors: parseUids(form.supervisors) };
+      const patch = { ...form, supervisors: parseIds(form.supervisors) };
       Object.keys(patch).forEach(k => { if (typeof patch[k] === 'string') patch[k] = patch[k].trim(); });
       const res = await identityAPI.updateCloud(cloud.branch, cloud.gid_number, patch);
       if (res?.status === 'SUCCESS') onSaved(res.message);
@@ -83,8 +86,8 @@ function EditDialog({ cloud, data, onClose, onSaved }) {
         </div>
         <Field label="Máy chủ cung cấp dịch vụ (iDCloudPrimaryProviderURI)"><input maxLength={255} value={form.provider_uri} onChange={e => setForm({ ...form, provider_uri: e.target.value })} className={`${inputCls} font-mono`} /></Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Trưởng nhóm (uidNumber)"><input inputMode="numeric" value={form.primary_member} onChange={e => setForm({ ...form, primary_member: e.target.value.trim() })} className={`${inputCls} font-mono`} /></Field>
-          <Field label="Người hướng dẫn (uidNumber)" hint="Phân tách bằng dấu phẩy"><input value={form.supervisors} onChange={e => setForm({ ...form, supervisors: e.target.value })} className={`${inputCls} font-mono`} /></Field>
+          <Field label="Trưởng nhóm (OwnerID)"><input value={form.primary_member} onChange={e => setForm({ ...form, primary_member: e.target.value.trim() })} className={`${inputCls} font-mono`} /></Field>
+          <Field label="Người hướng dẫn (OwnerID)" hint="Phân tách bằng dấu phẩy"><input value={form.supervisors} onChange={e => setForm({ ...form, supervisors: e.target.value })} className={`${inputCls} font-mono`} /></Field>
         </div>
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
@@ -116,7 +119,7 @@ function MembersDialog({ cloud, canManage, onClose, onSaved }) {
 
   const add = async (e) => {
     e.preventDefault();
-    if (await apply('add', parseUids(adding), [])) setAdding('');
+    if (await apply('add', parseIds(adding), [])) setAdding('');
   };
 
   return (
@@ -127,8 +130,8 @@ function MembersDialog({ cloud, canManage, onClose, onSaved }) {
           Trưởng nhóm: <b className="font-mono text-fg">{current.primary_member || '—'}</b> · Người hướng dẫn: <b className="font-mono text-fg">{current.supervisors.join(', ') || '—'}</b>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {current.member_uids.length === 0 && <span className="text-xs italic text-fg-subtle">Chưa có thành viên.</span>}
-          {current.member_uids.map(uid => (
+          {current.member_ids.length === 0 && <span className="text-xs italic text-fg-subtle">Chưa có thành viên.</span>}
+          {current.member_ids.map(uid => (
             <span key={uid} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-line bg-elevated text-[11px] font-mono">
               {uid}
               {canManage && (
@@ -138,16 +141,13 @@ function MembersDialog({ cloud, canManage, onClose, onSaved }) {
               )}
             </span>
           ))}
-          {current.legacy_member_uids.map(uid => (
-            <span key={uid} title="memberUid kiểu tên đăng nhập cũ (NISCI), được giữ nguyên" className="px-2 py-0.5 rounded-md border border-dashed border-line text-[11px] font-mono text-fg-subtle">{uid}</span>
-          ))}
         </div>
         {canManage && (
           <form onSubmit={add} className="flex gap-2 items-end">
-            <Field label="Thêm thành viên (uidNumber, phân tách bằng dấu phẩy)">
-              <input value={adding} onChange={e => setAdding(e.target.value)} className={`${controlCls} w-72 font-mono`} placeholder="1172204, 1172205" />
+            <Field label="Thêm thành viên (mã định danh OwnerID, phân tách bằng dấu phẩy)">
+              <input value={adding} onChange={e => setAdding(e.target.value)} className={`${controlCls} w-72 font-mono`} placeholder="2174802010123, NV001" />
             </Field>
-            <Button type="submit" variant="primary" icon={UserPlus} busy={busy === 'add'} disabled={!parseUids(adding).length || badUids(adding).length > 0}>Thêm</Button>
+            <Button type="submit" variant="primary" icon={UserPlus} busy={busy === 'add'} disabled={!parseIds(adding).length || badIds(adding).length > 0}>Thêm</Button>
           </form>
         )}
       </div>
@@ -337,7 +337,7 @@ export default function CloudsPanel() {
       const res = await identityAPI.allocateCloud({
         branch: form.branch, name: form.name.trim(), description: form.description.trim(), type: form.type,
         status: form.status.trim() || 'Private', primary_member: form.primary_member.trim(),
-        supervisors: parseUids(form.supervisors), members: parseUids(form.members),
+        supervisors: parseIds(form.supervisors), members: parseIds(form.members),
       });
       if (res?.status === 'SUCCESS') {
         // Cấp phát trên OpenLDAP đã xong; chưa đăng ký được Kho Tri thức (PostgreSQL) thì chỉ cảnh báo
@@ -362,7 +362,7 @@ export default function CloudsPanel() {
   if (!data) return <div className="flex flex-col gap-4"><Notice notice={notice} />{!notice && <p className="text-xs text-fg-subtle">Đang tải danh mục phân vùng...</p>}</div>;
   const canManage = data.can_manage;
   const freeTotal = Object.values(data.templates_free || {}).reduce((a, b) => a + b, 0);
-  const createInvalid = badUids(form.supervisors).length > 0 || badUids(form.members).length > 0 || (form.primary_member && !/^\d+$/.test(form.primary_member.trim()));
+  const createInvalid = badIds(form.supervisors).length > 0 || badIds(form.members).length > 0 || badId(form.primary_member);
 
   return (
     <div className="flex flex-col gap-4">
@@ -418,9 +418,9 @@ export default function CloudsPanel() {
               <Field label="Trạng thái"><StatusInput value={form.status} onChange={v => setForm({ ...form, status: v })} data={data} /></Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Field label="Trưởng nhóm (uidNumber)"><input inputMode="numeric" value={form.primary_member} onChange={e => setForm({ ...form, primary_member: e.target.value })} className={`${inputCls} font-mono`} /></Field>
-              <Field label="Người hướng dẫn (uidNumber)"><input value={form.supervisors} onChange={e => setForm({ ...form, supervisors: e.target.value })} className={`${inputCls} font-mono`} placeholder="1172201" /></Field>
-              <Field label="Thành viên (uidNumber)"><input value={form.members} onChange={e => setForm({ ...form, members: e.target.value })} className={`${inputCls} font-mono`} placeholder="1172204, 1172205" /></Field>
+              <Field label="Trưởng nhóm (OwnerID)"><input value={form.primary_member} onChange={e => setForm({ ...form, primary_member: e.target.value })} className={`${inputCls} font-mono`} /></Field>
+              <Field label="Người hướng dẫn (OwnerID)"><input value={form.supervisors} onChange={e => setForm({ ...form, supervisors: e.target.value })} className={`${inputCls} font-mono`} placeholder="GV001" /></Field>
+              <Field label="Thành viên (OwnerID)"><input value={form.members} onChange={e => setForm({ ...form, members: e.target.value })} className={`${inputCls} font-mono`} placeholder="2174802010123, 2174802010124" /></Field>
             </div>
             <div className="flex justify-end gap-2">
               <Button onClick={() => setShowCreate(false)}>Hủy</Button>
@@ -454,9 +454,8 @@ export default function CloudsPanel() {
                   <td className="py-2.5 pr-4"><StatusBadges status={c.status} visibility={data.visibility} lifecycle={data.lifecycle} /></td>
                   <td className="py-2.5 pr-4 whitespace-nowrap">
                     <button onClick={() => setMembersOf(c)} disabled={c.template} className="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:text-fg-subtle disabled:no-underline">
-                      <Users size={12} />{c.member_uids.length}
+                      <Users size={12} />{c.member_ids.length}
                     </button>
-                    {c.legacy_member_uids.length > 0 && <span className="text-[10px] text-fg-subtle"> +{c.legacy_member_uids.length} cũ</span>}
                     <div className="text-[10px] text-fg-subtle">HD: <span className="font-mono">{c.supervisors.join(', ') || '—'}</span></div>
                   </td>
                   <td className="py-2.5 pr-4">
