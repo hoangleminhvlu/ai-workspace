@@ -168,6 +168,21 @@ export const iThunderAPI = {
     }
   },
 
+  // Trang Lịch sử Làm việc: phiên hội thoại của chính người dùng trên mọi Kho Tri thức (lọc theo tên phiên, kho)
+  getAllThreads: async (q = "", domain = "", limit = 200) => {
+    try {
+      const params = new URLSearchParams({ q, domain, limit: String(limit) });
+      const response = await fetch(`${httpUrl}/api/chat/threads/all?${params}`, {
+        method: "GET",
+        headers: getAuthHeaders()
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi truy vấn lịch sử làm việc:", error);
+      throw error;
+    }
+  },
+
   // Trích xuất chi tiết nội dung tin nhắn cũ bên trong một Thread
   getChatHistory: async (threadId) => {
     try {
@@ -847,6 +862,23 @@ export const takePendingDomain = () => {
     const key = sessionStorage.getItem(PENDING_DOMAIN_KEY);
     sessionStorage.removeItem(PENDING_DOMAIN_KEY);
     return key;
+  } catch {
+    return null;
+  }
+};
+
+// Nút "Tiếp tục hội thoại" ở trang Lịch sử Làm việc: Workspace chọn kho của phiên rồi nạp lại toàn bộ tin nhắn
+const PENDING_THREAD_KEY = "tara_open_thread";
+export const requestOpenThread = (thread) => {
+  try {
+    sessionStorage.setItem(PENDING_THREAD_KEY, JSON.stringify({ thread_id: thread.thread_id, title: thread.title, domain: thread.domain, created_at: thread.updated_at || thread.created_at }));
+  } catch { /* bỏ qua: chỉ không tự mở phiên */ }
+};
+export const takePendingThread = () => {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(PENDING_THREAD_KEY) || "null");
+    sessionStorage.removeItem(PENDING_THREAD_KEY);
+    return value?.thread_id ? value : null;
   } catch {
     return null;
   }

@@ -259,7 +259,7 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
               <div className="rounded-2xl px-3 py-2 text-sm bg-card border border-line break-words max-w-full">
                 {aiStream.text ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"><ReactMarkdown components={markdownComponents}>{aiStream.text}</ReactMarkdown></div>
-                ) : <span className="inline-flex items-center gap-2 text-xs text-fg-subtle"><Loader2 size={12} className="animate-spin" /> Đang suy nghĩ...</span>}
+                ) : <span className="inline-flex items-center gap-2 text-xs text-fg-subtle"><Loader2 size={12} className="animate-spin" /> {aiStream.status || 'Đang suy nghĩ...'}</span>}
               </div>
             </div>
           </div>

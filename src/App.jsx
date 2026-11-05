@@ -10,11 +10,11 @@ import {
   UserPlus, CornerDownLeft, Sparkles, FolderGit, MessageSquare,
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
-  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe
+  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe, History, Activity, Library
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 
 // Mã phiên hội thoại (thread) mới: mỗi lần đăng nhập/đăng xuất hoặc đổi kho tri thức là một thread riêng,
@@ -26,13 +26,23 @@ const newThreadId = () => {
   return `thread_${unique}`;
 };
 
+// Nhóm Kho Tri thức trong danh sách chọn ở thanh bên (Kho Cá nhân hiện riêng)
+const PERSONAL_STORE = 'Personal';
+const STORE_GROUPS = [
+  { id: 'org', label: 'Kho của Tổ chức' },
+  { id: 'cloud', label: 'Dự án / phân vùng của bạn' },
+  { id: 'opened', label: 'Phân vùng đã mở' },
+];
+const storeGroup = (c) => (c?.opened ? 'opened' : c?.scope === 'cloud' ? 'cloud' : 'org');
+const storeLabel = (c) => (c?.scope === 'cloud' ? c.cloud?.name || c.display_name : c?.display_name || c?.storage_key);
+
 // Số khung hình FaceID không khớp/không thấy khuôn mặt liên tiếp trước khi tạm dừng quét
 const MAX_FACE_ATTEMPTS = 8;
 
 // Danh mục lệnh nhanh (Slash Commands) hiển thị khi gõ "/" trong ô Chat/Work
 const SLASH_COMMANDS = [
   { cmd: '/menu', desc: 'Hiển thị thanh điều hướng tác vụ chính' },
-  { cmd: '/history', desc: 'Xem lịch sử hội thoại của kho đang chọn' },
+  { cmd: '/history', desc: 'Xem lịch sử hội thoại của kho đang chọn (mọi kho: mục Lịch sử Làm việc)' },
   { cmd: '/thread', desc: 'Khôi phục hội thoại gần nhất (/thread <số> theo /history)' },
   { cmd: '/knowledge', desc: 'Quản trị và kiểm tra danh mục kho tri thức' },
   { cmd: '/analytics', desc: 'Giám sát hạ tầng và hiệu năng AI Server' },
@@ -92,7 +102,7 @@ export default function App() {
   }, [theme]);
 
   // Quản lý Dữ liệu Workspace
-  const [userData, setUserData] = useState({ userId: "1162000", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
+  const [userData, setUserData] = useState({ userId: "1162000", ownerId: "", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
   const [activeDomain, setActiveDomain] = useState('Personal');
   // Mô hình LLM: danh mục đọc động từ Máy chủ AI (Backend /api/models <- Ollama /api/tags); lựa chọn được nhớ trên máy trạm
   // Mỗi mô hình thuộc một Máy chủ AI LLM Runtime (ai_runtimes.json của Backend); runtime rỗng => Backend tự chọn
@@ -135,10 +145,20 @@ export default function App() {
       const data = await iThunderAPI.getCollections();
       if (Array.isArray(data)) {
         setCollections(data);
+        // Kho đang chọn không còn quyền truy cập (vd. tài khoản Khách dùng chung không có Kho Cá nhân): chuyển sang kho đầu tiên
+        if (data.length > 0) setActiveDomain(cur => data.some(c => c.storage_key === cur) ? cur : data[0].storage_key);
         // Lối tắt "Mở Kho" từ tab Phân vùng của Quản trị Định danh: chọn kho đó làm kho đang dùng
         const pending = takePendingDomain();
         const target = pending && data.find(c => c.storage_key === pending);
         if (target) { setActiveDomain(target.storage_key); setActiveThreadId(newThreadId()); }
+        // Nút "Tiếp tục hội thoại" ở trang Lịch sử Làm việc: chọn kho của phiên rồi nạp lại tin nhắn
+        const thread = takePendingThread();
+        if (thread && data.some(c => c.storage_key === thread.domain)) {
+          setActiveDomain(thread.domain);
+          restoreThread(thread);
+        } else if (thread) {
+          setMessages([{ role: "assistant", content: "⚠️ **[Không thể tiếp tục]:** Bạn không còn quyền truy cập Kho Tri thức `" + (thread.domain || "?") + "` của phiên _" + (thread.title || thread.thread_id) + "_." }]);
+        }
       }
     } catch (err) {
       console.warn("[iThunder Data] Không thể liên thông nạp dữ liệu thống kê phân vùng:", err);
@@ -153,6 +173,14 @@ export default function App() {
   const refreshHistoryPolicy = async () => {
     try {
       const me = await iThunderAPI.getCurrentUser();
+      if (me?.owner_id) {
+        setUserData(prev => {
+          if (prev.ownerId === me.owner_id || String(prev.userId) !== String(me.user_id)) return prev;
+          const next = { ...prev, ownerId: me.owner_id };
+          localStorage.setItem("tara_user", JSON.stringify(next));
+          return next;
+        });
+      }
       if (me && typeof me.chat_history_enabled === "boolean") {
         const policy = { enabled: me.chat_history_enabled, roles: Array.isArray(me.chat_history_roles) ? me.chat_history_roles : [] };
         setHistoryPolicy(policy);
@@ -317,7 +345,7 @@ export default function App() {
       setMessages([]);
       setCollections([]);
       setActiveThreadId(newThreadId());
-      setUserData({ userId: "1162000", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
+      setUserData({ userId: "1162000", ownerId: "", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
       setErrorMessage(e.detail || "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại!");
       setIsLoading(false);
       setViewState('LOGIN');
@@ -428,6 +456,7 @@ export default function App() {
 
           const sessionUser = {
             userId: res.user_id,
+            ownerId: res.owner_id || "",
             userName: res.user_name,
             userRole: res.user_role || "member",
             userOrg: res.user_org
@@ -549,6 +578,7 @@ export default function App() {
         localStorage.setItem("tara_token", res.access_token || "");
         const sessionUser = {
           userId: res.user_id,
+          ownerId: res.owner_id || "",
           userName: res.user_name,
           userRole: res.user_role || "member",
           userOrg: res.user_org
@@ -756,6 +786,11 @@ export default function App() {
 
 
   // Đổi kho tri thức: mở một phiên hội thoại (thread) mới gắn với kho vừa chọn
+  const storeList = Array.isArray(collections) ? collections : [];
+  const personalStore = storeList.find(c => c.storage_key === PERSONAL_STORE);
+  const otherStores = storeList.filter(c => c.storage_key !== PERSONAL_STORE);
+  const activeOther = otherStores.find(c => c.storage_key === activeDomain);
+
   const handleSelectDomain = (col) => {
     if (col.storage_key === activeDomain) return;
     setActiveDomain(col.storage_key);
@@ -916,6 +951,10 @@ export default function App() {
         return;
 
       case '/analytics':
+        if (userData.userRole !== 'admin') {
+          replaceLastAssistant("⛔ **[Không có quyền]:** Giám sát Hệ thống chỉ dành cho Quản trị viên (vai trò `admin`).");
+          return;
+        }
         replaceLastAssistant("📊 Đang mở trang **Giám sát Hạ tầng & Hiệu năng AI Server**...");
         navigate('/analytics');
         return;
@@ -1478,56 +1517,102 @@ export default function App() {
       )}
 
       {/* 1. THANH SIDEBAR TRÁI: QUẢN LÝ KHO TRI THỨC */}
-      <aside className={`h-app bg-panel border-r border-line flex flex-col justify-between transition-all duration-300 shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:overflow-y-auto ${isLeftSidebarOpen ? 'w-64 opacity-100 visibility-visible' : 'w-0 opacity-0 pointer-events-none'}`}>
-        <div className="flex flex-col p-4 gap-4">
+      <aside className={`h-app bg-panel border-r border-line flex flex-col justify-between transition-all duration-300 shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 ${isLeftSidebarOpen ? 'w-64 opacity-100 visibility-visible' : 'w-0 opacity-0 pointer-events-none'}`}>
+        {/* Phần trên cuộn được; khung Đăng xuất (shrink-0) luôn nằm ở đáy thanh bên */}
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-4">
           <div className="flex flex-col gap-1">
             <img src="/logo.png" alt="iThunder Logo"  className="w-40 h-20 object-contain shrink-0" />
             <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
-            <span className="text-[12px] text-fg-muted">Thành viên: <b className="text-fg">{userData.userName}</b></span>
-            <span className="text-[12px] text-fg-muted">Mã Định danh: <b className="text-fg">{userData.userId}</b></span>
-            <span className="text-[12px] text-fg-muted">Vai trò: <b className="text-fg">{userData.userRole}</b></span>
+            <span className="text-[12px] text-fg-muted truncate">Họ và Tên: <b className="text-fg">{userData.userName}</b></span>
+            <span className="text-[12px] text-fg-muted truncate">Mã ID: <b className="text-fg font-mono">{userData.ownerId || '—'}</b></span>
+            <span className="text-[12px] text-fg-muted truncate">Vai trò: <b className="text-fg">{userData.userRole}</b></span>
           </div>
-          <div className="flex flex-col gap-2 mt-2">
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider">CHỨC NĂNG</span>
+            <div className="flex flex-col gap-1">
+              <button onClick={() => navigate('/knowledge')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
+                <Library size={13} className="text-fg-subtle" />
+                <span>Kho Tri thức</span>
+              </button>
+              {/* Ẩn với Khách (tài khoản dùng chung); Backend vẫn kiểm tra COMM_ROLES ở từng API */}
+              {userData.userRole !== 'visitor' && (
+                <button onClick={() => navigate('/comm')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
+                  <MessagesSquare size={13} className="text-fg-subtle" />
+                  <span>Trao đổi trực tuyến</span>
+                </button>
+              )}
+              <button onClick={() => navigate('/history')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
+                <History size={13} className="text-fg-subtle" />
+                <span>Lịch sử Làm việc</span>
+              </button>
+              {/* Chỉ hiện với vai trò admin; Backend vẫn kiểm tra SYSTEM_MONITOR_ROLES ở từng API */}
+              {userData.userRole === 'admin' && (
+                <button onClick={() => navigate('/analytics')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
+                  <Activity size={13} className="text-fg-subtle" />
+                  <span>Giám sát Hệ thống</span>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
             <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider">KHO TRI THỨC (RAG)</span>
             <div className="flex flex-col gap-1">
 
-              {/* Thêm rào chắn an toàn Array.isArray() */}
-              {/* Kho của Tổ chức, rồi Kho của các phân vùng người dùng tham gia, cuối cùng là phân vùng Public tự mở */}
-              {Array.isArray(collections) && collections.map((col, i) => {
-                const group = (c) => (c?.opened ? 'opened' : c?.scope === 'cloud' ? 'cloud' : 'org');
-                const header = group(col) !== group(collections[i - 1]) && { cloud: 'PHÂN VÙNG CỦA BẠN', opened: 'PHÂN VÙNG ĐÃ MỞ' }[group(col)];
-                return (
-                <React.Fragment key={col.storage_key}>
-                {header && (
-                  <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider mt-2 px-1">{header}</span>
-                )}
-                <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleSelectDomain(col)}
-                  title={col.cloud ? `${col.cloud.name} – ${col.cloud.description}` : undefined}
-                  className={`flex-1 min-w-0 flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === col.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}
-                >
+              {/* Chỉ Kho Cá nhân hiện đầy đủ (số tệp); các Kho còn lại (Tổ chức, Dự án được tham gia, phân vùng Public đã mở)
+                  chọn qua danh sách theo tên để thanh bên không tràn chiều cao khi người dùng có nhiều Kho */}
+              {personalStore && (
+                <button onClick={() => handleSelectDomain(personalStore)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === personalStore.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}>
                   <span className="flex items-center gap-2 min-w-0">
-                    {col.scope === 'cloud'
-                      ? <FolderKanban size={13} className={`shrink-0 ${activeDomain === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'}`} />
-                      : <Database size={13} className={activeDomain === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />}
-                    <span className="truncate">{col.scope === 'cloud' ? col.cloud?.name || col.display_name : col.display_name}</span>
-                    {getStoragePermission(col, userData.userRole) === 'read' && (
-                      <Eye size={11} className="text-amber-600 dark:text-amber-400" title="Chỉ khai thác" aria-label="Chỉ khai thác" />
-                    )}
+                    <Database size={13} className={activeDomain === personalStore.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />
+                    <span className="truncate">{personalStore.display_name}</span>
                   </span>
-                  <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono shrink-0">{col.file_count} tệp</span>
+                  <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono shrink-0">{personalStore.file_count} tệp</span>
                 </button>
-                {col.opened && (
-                  <button onClick={() => handleClosePublicCloud(col)} title="Gỡ khỏi danh mục" aria-label={`Gỡ ${col.cloud?.name || col.storage_key} khỏi danh mục`}
-                    className="p-1.5 rounded-md text-fg-subtle hover:text-red-600 dark:hover:text-red-400 hover:bg-hover shrink-0">
-                    <X size={12} />
-                  </button>
-                )}
+              )}
+
+              {otherStores.length > 0 && (
+                <div className={`flex flex-col gap-1.5 rounded-lg p-2 mt-1 ${activeOther ? 'bg-blue-600/10 border border-blue-500/40' : 'border border-line'}`}>
+                  <label htmlFor="sidebar-store-select" className="text-[10px] font-semibold text-fg-subtle flex items-center gap-1">
+                    <FolderKanban size={11} />Kho Tổ chức và Dự án ({otherStores.length})
+                  </label>
+                  <select id="sidebar-store-select" value={activeOther ? activeOther.storage_key : ''}
+                    onChange={e => { const col = otherStores.find(c => c.storage_key === e.target.value); if (col) handleSelectDomain(col); }}
+                    className="w-full bg-elevated border border-line text-xs rounded-md px-2 py-1.5 text-fg focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                    <option value="" disabled>Chọn Kho Tri thức...</option>
+                    {STORE_GROUPS.map(g => {
+                      const list = otherStores.filter(c => storeGroup(c) === g.id);
+                      return list.length > 0 && (
+                        <optgroup key={g.id} label={g.label}>
+                          {list.map(c => (
+                            <option key={c.storage_key} value={c.storage_key}>
+                              {storeLabel(c)}{getStoragePermission(c, userData.userRole) === 'read' ? ' (chỉ khai thác)' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                  {activeOther && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-fg-muted min-w-0">
+                      <span className="truncate flex-1" title={activeOther.cloud ? `${activeOther.cloud.name} – ${activeOther.cloud.description}` : activeOther.display_name}>
+                        {activeOther.cloud?.description || activeOther.display_name}
+                      </span>
+                      {getStoragePermission(activeOther, userData.userRole) === 'read' && (
+                        <Eye size={11} className="text-amber-600 dark:text-amber-400 shrink-0" title="Chỉ khai thác" aria-label="Chỉ khai thác" />
+                      )}
+                      <span className="bg-elevated px-1.5 py-0.5 rounded-md font-mono shrink-0">{activeOther.file_count} tệp</span>
+                      {activeOther.opened && (
+                        <button onClick={() => handleClosePublicCloud(activeOther)} title="Gỡ khỏi danh mục" aria-label={`Gỡ ${storeLabel(activeOther)} khỏi danh mục`}
+                          className="p-1 rounded-md text-fg-subtle hover:text-red-600 dark:hover:text-red-400 hover:bg-hover shrink-0">
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                </React.Fragment>
-                );
-              })}
+              )}
 
               <button onClick={() => setShowPublicClouds(true)}
                 className="w-full flex items-center gap-2 px-3 py-2 mt-1 rounded-lg text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-hover transition-all">
@@ -1556,18 +1641,11 @@ export default function App() {
                 <Cable size={13} className="text-fg-subtle" />
                 <span>Tích hợp MCP</span>
               </button>
-              {/* Ẩn với Khách (tài khoản dùng chung); Backend vẫn kiểm tra COMM_ROLES ở từng API */}
-              {userData.userRole !== 'visitor' && (
-                <button onClick={() => navigate('/comm')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
-                  <MessagesSquare size={13} className="text-fg-subtle" />
-                  <span>Trao đổi trực tuyến</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
 
-        <div className="p-4 border-t border-line bg-app">
+        <div className="p-4 border-t border-line bg-app shrink-0">
           <button
             onClick={async () => {
               try {
@@ -1591,7 +1669,7 @@ export default function App() {
                 setMessages([]);
                 setCollections([]);
                 setActiveThreadId(newThreadId());
-                setUserData({ userId: "1162000", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
+                setUserData({ userId: "1162000", ownerId: "", userName: "Khách", userRole: "visitor", userOrg: "AI-TECH Center" });
 
                 // 5. Trục xuất người dùng về màn hình khóa trung tâm
                 setViewState('LOGIN');

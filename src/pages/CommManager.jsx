@@ -160,6 +160,9 @@ export default function CommManager() {
       case 'ai_start':
         setAiStreams(s => ({ ...s, [convId]: { stream_id: frame.stream_id, text: '', model: frame.model } }));
         break;
+      case 'ai_status':
+        setAiStreams(s => (s[convId]?.stream_id === frame.stream_id ? { ...s, [convId]: { ...s[convId], status: frame.text } } : s));
+        break;
       case 'ai_delta':
         setAiStreams(s => (s[convId]?.stream_id === frame.stream_id ? { ...s, [convId]: { ...s[convId], text: s[convId].text + frame.text } } : s));
         break;
