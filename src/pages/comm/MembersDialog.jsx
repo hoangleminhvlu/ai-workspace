@@ -7,7 +7,8 @@ import React, { useState } from 'react';
 import { Crown, LogOut, Save, UserMinus, UserPlus } from 'lucide-react';
 import { commAPI } from '../../services/api';
 import { Button, Field, Modal, Notice, inputCls } from '../identity/shared';
-import { Avatar, UserPicker, conversationTitle } from './shared';
+import { Avatar, UserPicker } from './shared';
+import { conversationTitle } from './utils';
 
 // Thông tin hội thoại: thành viên (online, quyền quản lý), thêm/bớt thành viên, đổi tên/kho Trợ lý AI, rời hội thoại.
 // Backend kiểm tra lại mọi quyền; nhóm gắn OpenLDAP chỉ đồng bộ thành viên theo memberUid.

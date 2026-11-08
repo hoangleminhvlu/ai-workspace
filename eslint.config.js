@@ -19,8 +19,9 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      // Biến dùng trong JSX (<App />, <Route />...) và hằng số viết hoa không bị báo là "không dùng"
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Biến dùng trong JSX (<App />, <Route />...) và hằng số viết hoa không bị báo là "không dùng";
+      // ignoreRestSiblings: cho phép tách bỏ một thuộc tính khỏi props, vd. ({ node, ...props }) => <a {...props} />
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', ignoreRestSiblings: true }],
     },
   },
   {

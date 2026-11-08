@@ -9,7 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ArrowLeft, Bot, Database, FolderKanban, History, MessageSquare, Play, RefreshCw, Trash2, User } from 'lucide-react';
 import iThunderAPI, { requestOpenThread } from '../services/api';
-import { Button, Notice, controlCls, formatDateTime } from './identity/shared';
+import { Button, Notice, controlCls } from './identity/shared';
+import { formatDateTime } from './identity/utils';
 
 const ALL = '';
 

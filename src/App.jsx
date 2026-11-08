@@ -16,6 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
+import useLatestCallback from './hooks/useLatestCallback';
 
 // Mã phiên hội thoại (thread) mới: mỗi lần đăng nhập/đăng xuất hoặc đổi kho tri thức là một thread riêng,
 // tránh ghi vào thread của người dùng trước (Backend trả 403) và để danh sách thread theo kho khớp nội dung
@@ -38,6 +39,9 @@ const storeLabel = (c) => (c?.scope === 'cloud' ? c.cloud?.name || c.display_nam
 
 // Số khung hình FaceID không khớp/không thấy khuôn mặt liên tiếp trước khi tạm dừng quét
 const MAX_FACE_ATTEMPTS = 8;
+
+// Chính sách lưu lịch sử hội thoại khi chưa biết (chưa nạp /api/auth/me hoặc Backend chưa có API này)
+const UNKNOWN_HISTORY_POLICY = { enabled: null, roles: [] };
 
 // Danh mục lệnh nhanh (Slash Commands) hiển thị khi gõ "/" trong ô Chat/Work
 const SLASH_COMMANDS = [
@@ -167,7 +171,6 @@ export default function App() {
 
   // Chính sách lưu lịch sử hội thoại theo vai trò: khai báo DUY NHẤT tại Backend (config.py: CHAT_HISTORY_ROLES),
   // giao diện đọc qua /api/auth/me. enabled = null khi chưa biết (chưa nạp hoặc Backend chưa có API này).
-  const UNKNOWN_HISTORY_POLICY = { enabled: null, roles: [] };
   const [historyPolicy, setHistoryPolicy] = useState(UNKNOWN_HISTORY_POLICY);
 
   const refreshHistoryPolicy = async () => {
@@ -194,7 +197,8 @@ export default function App() {
 
   // Tự động làm mới thông số khi người dùng click chuyển đổi qua lại giữa các dòng tên Kho Tri thức [2, 4]
   // Cho phép gọi nạp kho tri thức cho TẤT CẢ vai trò (bao gồm cả visitor)
-  useEffect(() => {
+  // useLatestCallback: effect chỉ chạy khi viewState đổi nhưng luôn gọi các hàm làm mới phiên bản mới nhất
+  const onViewStateChange = useLatestCallback(() => {
     if (viewState === 'WORKSPACE')  {
       refreshCollections();
       refreshHistoryPolicy();
@@ -204,7 +208,8 @@ export default function App() {
       setHistoryPolicy(UNKNOWN_HISTORY_POLICY);  // Đăng xuất / hết phiên: quên chính sách của người dùng trước
       setIdentityPermissions([]);
     }
-  }, [viewState]);
+  });
+  useEffect(() => { onViewStateChange(); }, [viewState, onViewStateChange]);
 
   // Danh mục mô hình của các Máy chủ AI; lựa chọn cũ không còn => cùng tên ở runtime khác, hoặc mô hình mặc định của Backend
   const refreshChatModels = async () => {
@@ -252,11 +257,12 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
+  const onActiveDomainChange = useLatestCallback(() => {
     if (viewState === 'WORKSPACE') {
       refreshCollections();
     }
-  }, [activeDomain]);
+  });
+  useEffect(() => { onActiveDomainChange(); }, [activeDomain, onActiveDomainChange]);
 
   // Trạng thái bộ lọc lệnh gạch chéo (Slash Commands)
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -289,7 +295,8 @@ export default function App() {
   }, [inputPrompt, viewState]);
 
  // --- TỰ ĐỘNG PHỤC HỒI PHIÊN LÀM VIỆC KHI REFRESH TRÌNH DUYỆT (F5) ---
-  useEffect(() => {
+  // Chạy một lần khi mở trang (restoreSession ổn định nhờ useLatestCallback)
+  const restoreSession = useLatestCallback(() => {
     // Lý do bị đăng xuất khi đang ở trang khác "/" (vd. tài khoản bị tạm khóa trong lúc mở /identity)
     try {
       const reason = sessionStorage.getItem("tara_logout_reason");
@@ -322,10 +329,11 @@ export default function App() {
         setViewState('WORKSPACE');
         refreshCollections();
       }
- 
+
       setIsLoading(false);
     }
-  }, []);
+  });
+  useEffect(() => { restoreSession(); }, [restoreSession]);
 
   useEffect(() => {
     // Thu thập IP máy trạm tự động
@@ -527,7 +535,7 @@ export default function App() {
           wsRef.current.send(JSON.stringify({ action: "verify_faceid", passcode: passcode, domain: activeDomain, clientIp: clientIp, image: base64Frame }));
         }, 1200);
       }
-    } catch (err) { setErrorMessage("Không thể kích hoạt Webcam máy trạm. Vui lòng cấp quyền."); }
+    } catch { setErrorMessage("Không thể kích hoạt Webcam máy trạm. Vui lòng cấp quyền."); }
   };
 
   const stopWebcamHardware = () => {
@@ -606,7 +614,7 @@ export default function App() {
       else {
         setErrorMessage(res.message || "Mã PassCode không chính xác!");
       }
-    } catch (err) {
+    } catch {
       setIsLoading(false);
       setErrorMessage("Không thể kết nối API xác thực Gateway.");
     }
@@ -696,13 +704,13 @@ export default function App() {
             const parsed = JSON.parse(cleanLine.substring(6).trim());
             const tokenContent = parsed.choices?.[0]?.delta?.content;
             if (tokenContent) appendToken(tokenContent);
-          } catch (e) {
+          } catch {
             // Phòng hờ API trả về text thô không theo chuẩn OpenAI
             if (cleanLine.includes('"text":')) {
               try {
                 const parsedRaw = JSON.parse(cleanLine);
                 if (parsedRaw.text) appendToken(parsedRaw.text);
-              } catch {}
+              } catch { /* Không phải JSON hợp lệ: bỏ qua dòng này */ }
             }
           }
         }
@@ -723,7 +731,7 @@ export default function App() {
       lineBuffer += decoder.decode();
       if (lineBuffer) processLine(lineBuffer);
 
-    } catch (err) {
+    } catch {
       setMessages(prev => {
         const updated = [...prev];
         updated[updated.length - 1] = {
@@ -779,7 +787,7 @@ export default function App() {
         const reason = typeof res?.detail === "string" ? res.detail : (res?.message || "Backend từ chối tiếp nhận tệp tin.");
         setUploadResult("⚠️ **[Nạp tri thức thất bại]:** Không thể tích hợp tài liệu `" + file.name + "`.\n\n* Nguyên nhân: " + reason);
       }
-    } catch (err) {
+    } catch {
       setUploadResult("❌ **[Lỗi kết nối]:** Không thể tải tệp `" + file.name + "` lên AI Gateway.");
     }
   };
@@ -844,7 +852,7 @@ export default function App() {
         return "✅ **[Đồng bộ thành công]:** Hệ thống đã hoàn tất quét phân vùng `" + col.display_name + "`.\n\n* Chi tiết: " + (res.detail || "Đã cập nhật danh mục tệp tin nhúng.");
       }
       return "⚠️ **[Đồng bộ thất bại]:** Backend phản hồi lỗi xử lý.\n\n* Nguyên nhân: " + (res?.detail || "Không rõ nguyên nhân cấu hình.");
-    } catch (err) {
+    } catch {
       return "❌ **[Lỗi kết nối]:** Không thể gửi lệnh đồng bộ tới AI Gateway.";
     }
   };
@@ -1010,7 +1018,7 @@ export default function App() {
         setDataFiles([]);
         setDataFilesError(res?.detail || "Không đọc được danh sách tập tin của Kho Dữ liệu.");
       }
-    } catch (err) {
+    } catch {
       if (requestId === dataRequestRef.current) {
         setDataFiles([]);
         setDataFilesError("Mất kết nối tới AI Gateway khi đọc Kho Dữ liệu.");
@@ -1065,7 +1073,7 @@ export default function App() {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch (err) {
+    } catch {
       showDataNotice('error', "Mất kết nối tới AI Gateway khi tải tập tin.");
     }
   };
@@ -1080,7 +1088,7 @@ export default function App() {
       } else {
         showDataNotice('error', res?.detail || "Đồng bộ tập tin thất bại.");
       }
-    } catch (err) {
+    } catch {
       showDataNotice('error', "Mất kết nối tới AI Gateway khi đồng bộ tập tin.");
     } finally {
       setDataBusyPath(null);
@@ -1099,7 +1107,7 @@ export default function App() {
       } else {
         showDataNotice('error', res?.detail || "Xóa tập tin thất bại.");
       }
-    } catch (err) {
+    } catch {
       showDataNotice('error', "Mất kết nối tới AI Gateway khi xóa tập tin.");
     } finally {
       setDataBusyPath(null);
@@ -1124,7 +1132,7 @@ export default function App() {
         }
         if (res?.status === "SUCCESS") done.push(res.detail);
         else failed.push(`${file.name}: ${res?.detail || "tải lên thất bại."}`);
-      } catch (err) {
+      } catch {
         failed.push(`${file.name}: mất kết nối tới AI Gateway.`);
       }
     }
@@ -1134,7 +1142,7 @@ export default function App() {
   };
 
   // Nạp danh sách tập tin khi vào Workspace hoặc đổi kho; đóng trình xem tệp của kho trước
-  useEffect(() => {
+  const onDataScopeChange = useLatestCallback(() => {
     closeViewer();
     setDataFilter('');
     setDataNotice(null);  // Thông báo thuộc kho trước, không hiển thị sang kho mới
@@ -1144,7 +1152,8 @@ export default function App() {
       dataRequestRef.current += 1;
       setDataFiles([]);
     }
-  }, [viewState, activeDomain]);
+  });
+  useEffect(() => { onDataScopeChange(); }, [viewState, activeDomain, onDataScopeChange]);
 
   const visibleDataFiles = dataFiles.filter(f => f.path.toLowerCase().includes(dataFilter.trim().toLowerCase()));
 

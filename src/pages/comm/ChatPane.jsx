@@ -3,10 +3,11 @@
  * Tập tin tạo lập môi trường trao đổi thông tin Text/Voice/Video Chat cho người dùng.
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Reply, RotateCw, Send, Trash2, Users, X } from 'lucide-react';
-import { Avatar, KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './shared';
+import { Avatar } from './shared';
+import { KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './utils';
 
 // Khung trò chuyện của một hội thoại: tin nhắn (Markdown, không nhận HTML thô), trả lời/sửa/xóa tin của mình,
 // tệp đính kèm, luồng trả lời của Trợ lý AI, "đang gõ", "đã xem" (hội thoại trực tiếp).
@@ -171,7 +172,8 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
   const scrollRef = useRef(null);
   const nearBottom = useRef(true);
   const prevHeight = useRef(null);
-  const items = thread?.items || [];
+  // useMemo: khi chưa có thread, [] không được tạo mới mỗi lần render (tránh chạy lại useLayoutEffect cuộn trang)
+  const items = useMemo(() => thread?.items || [], [thread?.items]);
   const byId = new Map(items.map(m => [m.id, m]));
   const peer = conversation.kind === 'direct' ? conversation.members.find(m => m.user_id !== me) : null;
   const online = conversation.members.filter(m => m.online).length;

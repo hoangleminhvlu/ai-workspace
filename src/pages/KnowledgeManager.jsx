@@ -10,6 +10,7 @@ import {
   ArrowLeft, Search, CheckCircle, AlertCircle, FolderKanban
 } from 'lucide-react';
 import iThunderAPI, { getStoragePermission } from '../services/api';
+import useLatestCallback from '../hooks/useLatestCallback';
 
 // Thông tin người dùng của phiên hiện tại (do App.jsx lưu khi đăng nhập); vai trò chỉ dùng để hiển thị,
 // quyền thật do Backend kiểm tra qua JWT
@@ -33,9 +34,9 @@ export default function KnowledgeManager() {
   const sessionUser = readSessionUser();
   const canManage = getStoragePermission(activeCollection, sessionUser.userRole) === 'manage';
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
+  // Nạp danh mục kho một lần khi mở trang (loadOnMount ổn định nhờ useLatestCallback)
+  const loadOnMount = useLatestCallback(() => { fetchCollections(); });
+  useEffect(() => { loadOnMount(); }, [loadOnMount]);
 
   const fetchCollections = async (keepStorageKey = null) => {
     setLoading(true);
@@ -52,7 +53,7 @@ export default function KnowledgeManager() {
         setActiveCollection(nextActive);
         fetchFiles(nextActive.collection_name);
       }
-    } catch (err) {
+    } catch {
       showMsg('error', 'Không thể nạp danh mục phân vùng kho tri thức.');
     } finally { setLoading(false); }
   };
@@ -66,7 +67,7 @@ export default function KnowledgeManager() {
         setFiles([]);
         showMsg('error', fileData?.detail || 'Lỗi truy quét danh sách tệp tin trong phân vùng.');
       }
-    } catch (err) {
+    } catch {
       showMsg('error', 'Lỗi truy quét danh sách tệp tin trong phân vùng.');
     }
   };
@@ -87,7 +88,7 @@ export default function KnowledgeManager() {
         showMsg('success', res.detail);
         fetchCollections(activeCollection.storage_key);
       } else { showMsg('error', res.detail); }
-    } catch (err) { showMsg('error', 'Lỗi kết nối API Gateway để đồng bộ RAG.'); }
+    } catch { showMsg('error', 'Lỗi kết nối API Gateway để đồng bộ RAG.'); }
     finally { setLoading(false); }
   };
 
@@ -103,7 +104,7 @@ export default function KnowledgeManager() {
       } else {
         showMsg('error', res.detail || 'Thao tác gỡ bỏ tệp tin thất bại.');
       }
-    } catch (err) { showMsg('error', 'Thao tác gỡ bỏ tệp tin thất bại.'); }
+    } catch { showMsg('error', 'Thao tác gỡ bỏ tệp tin thất bại.'); }
   };
 
   const showMsg = (type, text) => {

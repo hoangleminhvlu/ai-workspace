@@ -6,7 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { Archive, Ban, KeyRound, Mail, Plus, Save, ScanFace, Shield, Timer, Trash2, UserCog, X } from 'lucide-react';
 import { identityAPI } from '../../services/api';
-import { Button, Field, Notice, RoleChip, RolePicker, Section, StatusBadge, canTouchRole, formatDateTime, formatHours, controlCls, inputCls } from './shared';
+import { Button, Field, Notice, RoleChip, RolePicker, Section, StatusBadge, controlCls, inputCls } from './shared';
+import { canTouchRole, formatDateTime, formatHours } from './utils';
 
 const PROFILE_KEYS = ['full_name', 'owner_id', 'display_name', 'title', 'mobile', 'telephone', 'postal_address', 'description'];
 const profileForm = (u) => ({

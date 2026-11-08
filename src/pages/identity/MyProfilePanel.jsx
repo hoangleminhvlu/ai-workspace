@@ -6,7 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { KeyRound, Mail, Plus, Save, Shield, Trash2, UserCog } from 'lucide-react';
 import { identityAPI } from '../../services/api';
-import { Button, Field, Notice, RoleChip, Section, formatDateTime, formatHours, inputCls } from './shared';
+import { Button, Field, Notice, RoleChip, Section, inputCls } from './shared';
+import { formatDateTime, formatHours } from './utils';
 
 const SELF_KEYS = ['display_name', 'title', 'mobile', 'postal_address'];
 
