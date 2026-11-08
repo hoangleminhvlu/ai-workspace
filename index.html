@@ -11,13 +11,18 @@
     <title>iThunder AI Workspace</title>
 
     <!-- CẤU HÌNH TĨNH TOÀN CỤC CHO AI GATEWAY & AI PLATFORM
-         Để trống = AI Gateway là chính tên miền đang mở AI Workspace (nginx của mỗi Tổ chức chuyển /api, /ws về Backend
-         của Tổ chức đó): một bản build dùng chung cho mọi Tổ chức. Chỉ điền khi AI Gateway ở tên miền khác,
-         vd. API_GATEWAY_URL: "https://aigate.is-tech.vn", WS_GATEWAY_URL: "wss://aigate.is-tech.vn" -->
+         API_GATEWAY_URL để trống = AI Gateway là chính tên miền đang mở AI Workspace (nginx của mỗi Tổ chức chuyển /api,
+         /ws về Backend của Tổ chức đó): một bản build dùng chung cho mọi Tổ chức. Điền API_GATEWAY_URL (và WS_GATEWAY_URL)
+         chỉ khi muốn CỐ ĐỊNH một AI Gateway ở tên miền khác, vd. "https://aigate.is-tech.vn" / "wss://aigate.is-tech.vn".
+         Ứng dụng máy trạm (http://localhost trên máy Desktop, ứng dụng Desktop/Mobile) chọn AI Gateway trên trang Đăng nhập:
+           DEFAULT_GATEWAY_URL: AI Gateway thử kết nối khi người dùng chưa chọn (sau chính địa chỉ đang mở)
+           KNOWN_GATEWAYS     : các AI Gateway gợi ý sẵn (On-Clouds https hoặc On-Premise http://IP-nội-bộ:cổng) -->
     <script>
       window.TARA_CONFIG = {
         API_GATEWAY_URL: "",
-        WS_GATEWAY_URL: ""
+        WS_GATEWAY_URL: "",
+        DEFAULT_GATEWAY_URL: "https://aigate.is-tech.vn",
+        KNOWN_GATEWAYS: ["https://aigate.is-tech.vn", "https://ai-tech.vlu.edu.vn", "https://toboit.is-tech.vn", "https://vlsc.is-tech.vn"]
       };
     </script>
 

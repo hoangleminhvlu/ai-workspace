@@ -11,11 +11,11 @@ import {
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
   Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe, History, Activity, Library,
-  Building2
+  Building2, Server
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, gatewayAPI, gatewayKind, normalizeGatewayUrl } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 import useLatestCallback from './hooks/useLatestCallback';
 
@@ -75,12 +75,18 @@ const formatDateTime = (iso) => {
 const ORG_LOADING = { status: 'loading', orgId: '', orgName: '', orgUrl: '', location: '', network: '', switchEnabled: false, organizations: [] };
 const OTHER_ORG_HINT = 'Không phải Tổ chức của bạn? Hãy đăng nhập tại AI Gateway của Tổ chức mình (địa chỉ do Quản trị viên Tổ chức cung cấp).';
 const ONPREM_ORG_HINT = 'AI Gateway nội bộ (On-Premise): chỉ phục vụ mạng của Tổ chức này. Không phải Tổ chức của bạn? Hãy dùng AI Gateway do Quản trị viên Tổ chức mình cung cấp.';
+const CLIENT_ORG_HINT = 'Không phải Tổ chức của bạn? Bấm "Đổi" ở mục AI Gateway để kết nối AI Gateway của Tổ chức mình (địa chỉ do Quản trị viên Tổ chức cung cấp).';
+
+// AI Workspace chạy như ứng dụng máy trạm (http://localhost, Desktop, Mobile): người dùng chọn AI Gateway trên trang Đăng nhập
+const CLIENT_APP = gatewayAPI.isClientApp();
+const GATEWAY_KIND_LABEL = { onpremise: 'On-Premise · Mạng nội bộ', onclouds: 'On-Clouds · Internet' };
+const gatewayHost = (url) => { try { return new URL(url).host; } catch { return url; } };
 
 // Chỉ chuyển trang tới https (hoặc http://localhost khi phát triển): kiểm tra lại phía máy trạm dù Backend đã lọc danh mục
 const isSafeWorkspaceUrl = (url) => /^https:\/\/[^\s/@]+/i.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
 
 // Chọn Tổ chức khác rồi chuyển sang AI Workspace của Tổ chức đó (AI Gateway chạy trên Internet)
-const OrgSwitcher = ({ organizations }) => {
+const OrgSwitcher = ({ organizations, onSwitch }) => {
   const [target, setTarget] = useState('');
   const others = organizations.filter(o => !o.current && isSafeWorkspaceUrl(o.workspace_url));
   const chosen = others.find(o => o.org_id === target);
@@ -96,14 +102,14 @@ const OrgSwitcher = ({ organizations }) => {
           <option value="">— Chọn Tổ chức —</option>
           {others.map(o => <option key={o.org_id} value={o.org_id}>{o.org_name} ({o.org_id})</option>)}
         </select>
-        <button type="button" disabled={!chosen} onClick={() => window.location.assign(chosen.workspace_url)}
+        <button type="button" disabled={!chosen} onClick={() => (onSwitch ? onSwitch(chosen.workspace_url) : window.location.assign(chosen.workspace_url))}
           className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white disabled:bg-slate-700 disabled:text-slate-400 transition-colors">
           Chuyển
         </button>
       </div>
       {chosen && (
         <div className="text-[10px] text-slate-500 break-all leading-relaxed">
-          Mở AI Workspace: {chosen.workspace_url}{chosen.description ? ` · ${chosen.description}` : ''}
+          {onSwitch ? 'Kết nối AI Gateway' : 'Mở AI Workspace'}: {chosen.workspace_url}{chosen.description ? ` · ${chosen.description}` : ''}
         </div>
       )}
     </div>
@@ -111,7 +117,8 @@ const OrgSwitcher = ({ organizations }) => {
 };
 
 // Khối "Tổ chức" trên trang Đăng nhập: người dùng biết mình đang vào AI Workspace của Tổ chức nào trước khi nhập PassCode
-const GatewayOrgCard = ({ org, onRetry }) => {
+const GatewayOrgCard = ({ org, onRetry, onSwitch }) => {
+  if (org.status === 'none') return null;   // ứng dụng máy trạm chưa chọn AI Gateway: chỉ hiện ô nhập AI Gateway
   if (org.status === 'loading') {
     return (
       <div className="w-full bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs rounded-xl py-3 px-4 mt-4 flex items-center justify-center gap-2">
@@ -122,7 +129,7 @@ const GatewayOrgCard = ({ org, onRetry }) => {
   if (org.status === 'error') {
     return (
       <div role="alert" className="w-full bg-amber-950/40 border border-amber-500/60 text-amber-100 text-xs rounded-xl py-3 px-4 mt-4 text-left leading-relaxed">
-        <b>Chưa xác định được Tổ chức</b> của AI Gateway này (máy chủ chưa phản hồi thông tin Tổ chức).
+        <b>Chưa xác định được Tổ chức</b> của AI Gateway này{org.detail ? `: ${org.detail}` : ' (máy chủ chưa phản hồi thông tin Tổ chức).'}
         <button type="button" onClick={onRetry} className="ml-1 underline font-bold text-amber-300 hover:text-amber-200">Thử lại</button>
       </div>
     );
@@ -142,8 +149,88 @@ const GatewayOrgCard = ({ org, onRetry }) => {
         Mã Tổ chức: {org.orgId}{org.location ? ` · Máy chủ: ${org.location}` : ''}
       </div>
       {org.switchEnabled
-        ? <OrgSwitcher organizations={org.organizations} />
-        : <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{org.network === 'onpremise' ? ONPREM_ORG_HINT : OTHER_ORG_HINT}</div>}
+        ? <OrgSwitcher organizations={org.organizations} onSwitch={onSwitch} />
+        : <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{onSwitch ? CLIENT_ORG_HINT : org.network === 'onpremise' ? ONPREM_ORG_HINT : OTHER_ORG_HINT}</div>}
+    </div>
+  );
+};
+
+// Ứng dụng máy trạm: chọn AI Gateway — On-Premise (http, IP/tên máy nội bộ) hoặc On-Clouds (https qua Internet).
+// Kết nối = đọc /api/org/info để người dùng thấy đúng Tổ chức trước khi nhập PassCode; chỉ ghi nhớ sau khi xác thực thành công.
+// Cha đặt key={current}: đổi AI Gateway thì khối này khởi tạo lại (thu gọn, ô nhập mang địa chỉ mới).
+const GatewayPicker = ({ current, status, onConnect, disabled }) => {
+  const [editing, setEditing] = useState(!current);
+  const [text, setText] = useState(current || '');
+  const [error, setError] = useState('');
+  const [suggestions, setSuggestions] = useState(() => gatewayAPI.suggestions());
+  const open = editing || !current || status === 'error' || status === 'none';
+  const kind = current ? gatewayKind(current) : '';
+
+  const connect = (value) => {
+    const res = normalizeGatewayUrl(value);
+    if (res.error) { setError(res.error); return; }
+    setError('');
+    setText(res.url);
+    setEditing(false);
+    onConnect(res.url);
+  };
+  const forget = (url) => { gatewayAPI.forget(url); setSuggestions(gatewayAPI.suggestions()); };
+
+  return (
+    <div className="w-full mt-4 text-left">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5"><Server size={12} /> AI Gateway</span>
+        {kind && <span className="px-1.5 py-0.5 rounded border border-slate-500/60 text-slate-300 text-[9px]">{GATEWAY_KIND_LABEL[kind]}</span>}
+      </div>
+      {!open ? (
+        <div className="mt-1 flex items-center gap-2">
+          <span className="flex-1 min-w-0 truncate font-mono text-[11px] text-slate-200" title={current}>{current}</span>
+          <button type="button" disabled={disabled} onClick={() => { setText(current); setEditing(true); }}
+            className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-cyan-500/50 text-cyan-300 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors">
+            Đổi
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={(e) => { e.preventDefault(); connect(text); }} className="mt-1 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input type="text" list="gateway-suggestions" value={text} onChange={e => { setText(e.target.value); setError(''); }}
+              placeholder="https://aigate.to-chuc.vn · http://192.168.1.10:8088" aria-label="Địa chỉ AI Gateway"
+              autoComplete="url" inputMode="url" spellCheck={false} autoCapitalize="off"
+              className="flex-1 min-w-0 bg-slate-900 border border-slate-600 text-slate-100 text-xs font-mono rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-400" />
+            <button type="submit" disabled={disabled || status === 'loading' || !text.trim()}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white disabled:bg-slate-700 disabled:text-slate-400 transition-colors">
+              {status === 'loading' ? <Loader2 size={13} className="animate-spin" /> : 'Kết nối'}
+            </button>
+          </div>
+          <datalist id="gateway-suggestions">
+            {suggestions.map(g => <option key={g.url} value={g.url}>{g.org_name ? `${g.org_name} (${g.org_id})` : ''}</option>)}
+          </datalist>
+          {suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {suggestions.slice(0, 6).map(g => (
+                <span key={g.url} className="inline-flex items-center rounded-full border border-slate-600 text-[10px] text-slate-300 overflow-hidden">
+                  <button type="button" disabled={disabled} onClick={() => connect(g.url)} title={g.org_name ? `${g.org_name} · ${g.url}` : g.url}
+                    className="px-2 py-0.5 hover:bg-slate-700 hover:text-white">{g.org_id || gatewayHost(g.url)}</button>
+                  {g.last_used && (
+                    <button type="button" onClick={() => forget(g.url)} aria-label={`Quên AI Gateway ${g.url}`} title="Quên AI Gateway này"
+                      className="px-1.5 py-0.5 border-l border-slate-600 hover:bg-red-900/50 hover:text-red-200">×</button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+          {error && <div role="alert" className="text-[11px] text-red-300 leading-relaxed">{error}</div>}
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            On-Premise: <span className="font-mono">http://IP-nội-bộ:cổng</span> · On-Clouds: <span className="font-mono">https://tên-miền</span>.
+            Địa chỉ chỉ được ghi nhớ sau khi xác thực PassCode thành công.
+          </p>
+          {editing && current && status === 'ok' && (
+            <button type="button" onClick={() => { setEditing(false); setError(''); }} className="self-end text-[11px] text-slate-400 hover:text-slate-200 underline">
+              Giữ AI Gateway hiện tại
+            </button>
+          )}
+        </form>
+      )}
     </div>
   );
 };
@@ -173,19 +260,44 @@ export default function App() {
 
   // Tổ chức sở hữu AI Gateway này (đọc trước khi đăng nhập; trong Workspace được bổ sung từ /api/auth/me)
   const [orgInfo, setOrgInfo] = useState(ORG_LOADING);
-  const loadOrgInfo = async () => {
-    setOrgInfo(prev => (prev.status === 'ok' ? prev : ORG_LOADING));
+  // AI Gateway đang dùng ('' khi ứng dụng máy trạm chưa chọn); fresh: vừa đổi AI Gateway => không giữ Tổ chức cũ
+  const [activeGateway, setActiveGateway] = useState(() => gatewayAPI.current());
+  const orgRequestRef = useRef(0);
+  const loadOrgInfo = async ({ fresh = false } = {}) => {
+    const request = ++orgRequestRef.current;   // chỉ nhận kết quả của lần đọc mới nhất (đổi AI Gateway liên tiếp)
+    setOrgInfo(prev => (!fresh && prev.status === 'ok' ? prev : ORG_LOADING));
     const res = await iThunderAPI.getOrgInfo();
+    if (request !== orgRequestRef.current) return false;
     if (res?.status === 'SUCCESS' && res.org_id) {
       setOrgInfo({
         status: 'ok', orgId: res.org_id, orgName: res.org_name || res.org_id, orgUrl: res.org_url || '', location: res.location || '',
         network: res.network || '', switchEnabled: !!res.switch_enabled, organizations: Array.isArray(res.organizations) ? res.organizations : []
       });
-    } else {
-      setOrgInfo(prev => (prev.status === 'ok' ? prev : { ...ORG_LOADING, status: 'error' }));
+      return true;
     }
+    setOrgInfo(prev => (!fresh && prev.status === 'ok' ? prev : { ...ORG_LOADING, status: 'error', detail: res?.detail || '' }));
+    return false;
   };
-  const loadOrgInfoOnMount = useLatestCallback(loadOrgInfo);
+
+  // Ứng dụng máy trạm: kết nối thử AI Gateway ứng viên; chỉ ghi nhớ khi xác thực PassCode thành công (gatewayAPI.commit)
+  const connectGateway = async (url) => {
+    gatewayAPI.setCandidate(url);
+    setActiveGateway(gatewayAPI.current());
+    setJoinOffer(null);
+    setErrorMessage('');
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }   // kênh FaceID của AI Gateway cũ
+    return loadOrgInfo({ fresh: true });
+  };
+
+  // Mở trang: Web đọc Tổ chức của chính tên miền. Ứng dụng máy trạm chưa ghi nhớ AI Gateway thì tự dò chính địa chỉ
+  // đang mở (dev proxy / AI Gateway phục vụ luôn giao diện) rồi DEFAULT_GATEWAY_URL; không được thì chờ người dùng nhập.
+  const loadOrgInfoOnMount = useLatestCallback(async () => {
+    if (!CLIENT_APP || gatewayAPI.saved()) { loadOrgInfo(); return; }
+    for (const url of gatewayAPI.discoveryOrder()) {
+      if (await connectGateway(url)) return;
+    }
+    if (!gatewayAPI.current()) setOrgInfo({ ...ORG_LOADING, status: 'none' });
+  });
   useEffect(() => { loadOrgInfoOnMount(); }, [loadOrgInfoOnMount]);
 
   // Tiêu đề thẻ trình duyệt kèm Mã Tổ chức: phân biệt khi mở AI Workspace của nhiều Tổ chức cùng lúc
@@ -563,6 +675,7 @@ export default function App() {
           setErrorMessage('');
           stopWebcamHardware();
           faceFailCountRef.current = 0;
+          gatewayAPI.commit();   // ứng dụng máy trạm: ghi nhớ AI Gateway vừa xác thực thành công
           localStorage.setItem("tara_token", res.access_token || "");
 
           const sessionUser = {
@@ -670,6 +783,10 @@ export default function App() {
 
   const handlePasscodeSubmit = async (e) => {
     e.preventDefault();
+    if (CLIENT_APP && orgInfo.status !== 'ok') {
+      setErrorMessage('Hãy nhập địa chỉ và Kết nối AI Gateway của Tổ chức trước khi xác thực PassCode.');
+      return;
+    }
     setIsLoading(true);
     setErrorMessage('');
     setJoinOffer(null);
@@ -687,6 +804,7 @@ export default function App() {
 
       if (res.status === "SUCCESS") {
         // LUỒNG MIỄN FACEID: Lưu token và thông tin, vào thẳng luôn Workspace
+        gatewayAPI.commit();   // ứng dụng máy trạm: ghi nhớ AI Gateway vừa xác thực thành công
         localStorage.setItem("tara_token", res.access_token || "");
         const sessionUser = {
           userId: res.user_id,
@@ -720,7 +838,8 @@ export default function App() {
       }
     } catch {
       setIsLoading(false);
-      setErrorMessage("Không thể kết nối API xác thực Gateway.");
+      const gateway = getGatewayConfig().httpUrl;
+      setErrorMessage(`Không thể kết nối API xác thực của AI Gateway${gateway ? ` ${gateway}` : ''}.`);
     }
   };
 
@@ -754,7 +873,7 @@ export default function App() {
     try {
       const token = localStorage.getItem("tara_token") || "";
       // Định danh/vai trò do Backend lấy từ JWT nên không gửi user_id, user_role trên URL
-      const streamUrl = `/api/chat/rag-stream?thread_id=${encodeURIComponent(activeThreadId)}&user_ip=${encodeURIComponent(clientIp)}&domain=${encodeURIComponent(activeDomain)}&aimodel=${encodeURIComponent(selectedModel)}&runtime=${encodeURIComponent(selectedRuntime)}&prompt=${encodeURIComponent(userQuery)}`;
+      const streamUrl = `${getGatewayConfig().httpUrl}/api/chat/rag-stream?thread_id=${encodeURIComponent(activeThreadId)}&user_ip=${encodeURIComponent(clientIp)}&domain=${encodeURIComponent(activeDomain)}&aimodel=${encodeURIComponent(selectedModel)}&runtime=${encodeURIComponent(selectedRuntime)}&prompt=${encodeURIComponent(userQuery)}`;
 
       const response = await fetch(streamUrl, {
         method: "POST",
@@ -1507,7 +1626,8 @@ export default function App() {
               <h1 className="text-2xl font-extrabold tracking-tight text-white mt-2">iThunder AI Gateway</h1>
  
               {/* TỔ CHỨC SỞ HỮU AI GATEWAY: người dùng biết mình đang đăng nhập vào AI Workspace của Tổ chức nào */}
-              <GatewayOrgCard org={orgInfo} onRetry={loadOrgInfo} />
+              {CLIENT_APP && <GatewayPicker key={activeGateway} current={activeGateway} status={orgInfo.status} onConnect={connectGateway} disabled={isLoading} />}
+              <GatewayOrgCard org={orgInfo} onRetry={loadOrgInfo} onSwitch={CLIENT_APP ? connectGateway : undefined} />
             </div>
 
             {joinOffer ? (
@@ -1642,12 +1762,15 @@ export default function App() {
             <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
             {/* Tổ chức đang làm việc: cần Tổ chức khác thì đăng xuất rồi vào AI Gateway của Tổ chức đó */}
             <div className="my-1 px-2.5 py-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30"
-              title={`Bạn đang làm việc trong AI Workspace của ${workspaceOrgName}. Cần làm việc với Tổ chức khác? ${orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
+              title={`Bạn đang làm việc trong AI Workspace của ${workspaceOrgName}. Cần làm việc với Tổ chức khác? ${CLIENT_APP ? 'Hãy Đăng xuất rồi đổi AI Gateway trên trang Đăng nhập.' : orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
                 <Building2 size={11} /> Tổ chức
               </span>
               <span className="block text-[12px] font-semibold text-fg-strong leading-snug break-words">{workspaceOrgName}</span>
               {orgInfo.orgId && <span className="block text-[11px] text-fg-muted font-mono">Mã: {orgInfo.orgId}</span>}
+              {CLIENT_APP && activeGateway && (
+                <span className="block text-[10px] text-fg-subtle font-mono truncate" title={activeGateway}>AI Gateway: {gatewayHost(activeGateway)}</span>
+              )}
             </div>
             <span className="text-[12px] text-fg-muted truncate">Họ và Tên: <b className="text-fg">{userData.userName}</b></span>
             <span className="text-[12px] text-fg-muted truncate">Mã ID: <b className="text-fg font-mono">{userData.ownerId || '—'}</b></span>
