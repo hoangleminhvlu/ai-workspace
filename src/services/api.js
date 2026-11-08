@@ -139,8 +139,21 @@ export const iThunderAPI = {
   // --- QUẢN LÝ PHIÊN LÀM VIỆC VÀ LỊCH SỬ CHAT ---
   // Định danh người dùng do Backend lấy từ JWT; không cần (và không nên) gửi user_id
 
+  // Tổ chức sở hữu AI Gateway này (công khai, không cần đăng nhập): { org_id, org_name, org_url, location, ... }
+  // Trang Đăng nhập dùng để người dùng biết đang vào AI Workspace của Tổ chức nào. Lỗi mạng => { status: "FAIL" }
+  getOrgInfo: async () => {
+    try {
+      const response = await fetch(`${httpUrl}/api/org/info`, { method: "GET" });
+      if (!response.ok) return { status: "FAIL", detail: `HTTP ${response.status}` };
+      return await response.json();
+    } catch (error) {
+      console.warn("[iThunder API] Không đọc được thông tin Tổ chức của AI Gateway:", error);
+      return { status: "FAIL", detail: "Không kết nối được AI Gateway." };
+    }
+  },
+
   // Thông tin phiên + chính sách theo vai trò do Backend khai báo trong config.py
-  // (vd. chat_history_enabled, chat_history_roles) để giao diện không phải tự khai báo lại
+  // (vd. chat_history_enabled, chat_history_roles, org_id, org_name) để giao diện không phải tự khai báo lại
   getCurrentUser: async () => {
     try {
       const response = await fetch(`${httpUrl}/api/auth/me`, {

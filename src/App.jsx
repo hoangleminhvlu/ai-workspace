@@ -10,7 +10,8 @@ import {
   UserPlus, CornerDownLeft, Sparkles, FolderGit, MessageSquare,
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
-  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe, History, Activity, Library
+  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe, History, Activity, Library,
+  Building2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -69,6 +70,49 @@ const formatDateTime = (iso) => {
   return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString('vi-VN');
 };
 
+// Tổ chức sở hữu AI Gateway (Backend /api/org/info): status 'loading' | 'ok' | 'error'
+const ORG_LOADING = { status: 'loading', orgId: '', orgName: '', orgUrl: '', location: '' };
+const OTHER_ORG_HINT = 'Không phải Tổ chức của bạn? Hãy đăng nhập tại AI Gateway của Tổ chức mình (địa chỉ do Quản trị viên Tổ chức cung cấp).';
+
+// Khối "Tổ chức" trên trang Đăng nhập: người dùng biết mình đang vào AI Workspace của Tổ chức nào trước khi nhập PassCode
+const GatewayOrgCard = ({ org, onRetry }) => {
+  if (org.status === 'loading') {
+    return (
+      <div className="w-full bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 text-xs rounded-xl py-3 px-4 mt-4 flex items-center justify-center gap-2">
+        <Loader2 size={13} className="animate-spin" /> Đang xác định Tổ chức của AI Gateway...
+      </div>
+    );
+  }
+  if (org.status === 'error') {
+    return (
+      <div role="alert" className="w-full bg-amber-950/40 border border-amber-500/60 text-amber-100 text-xs rounded-xl py-3 px-4 mt-4 text-left leading-relaxed">
+        <b>Chưa xác định được Tổ chức</b> của AI Gateway này (máy chủ chưa phản hồi thông tin Tổ chức).
+        <button type="button" onClick={onRetry} className="ml-1 underline font-bold text-amber-300 hover:text-amber-200">Thử lại</button>
+      </div>
+    );
+  }
+  return (
+    <div className="w-full bg-cyan-950/40 border border-cyan-500/50 rounded-xl py-3 px-4 mt-4 text-left shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+        <Building2 size={12} /> AI Workspace của Tổ chức
+      </div>
+      <div className="text-sm font-extrabold text-white mt-1 leading-snug">{org.orgName}</div>
+      <div className="text-[11px] text-cyan-200/80 mt-0.5 font-mono">
+        Mã Tổ chức: {org.orgId}{org.location ? ` · Máy chủ: ${org.location}` : ''}
+      </div>
+      <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{OTHER_ORG_HINT}</div>
+    </div>
+  );
+};
+
+// Một dòng "Tổ chức" cho các màn hình nhận PassCode, đăng ký, FaceID
+const GatewayOrgLine = ({ org }) => (org.status === 'ok' ? (
+  <p className="text-[11px] text-cyan-300 mt-1.5 flex items-center justify-center gap-1" title={OTHER_ORG_HINT}>
+    <Building2 size={11} className="shrink-0" />
+    <span>Tổ chức: <b className="text-white">{org.orgName}</b> ({org.orgId})</span>
+  </p>
+) : null);
+
 export default function App() {
   const navigate = useNavigate();
   // Điều hướng phân cảnh giao diện: 'LOGIN' | 'FACEID' | 'GET_CODE' | 'REGISTER' | 'WORKSPACE'
@@ -83,6 +127,25 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   // PassCode đúng nhưng tài khoản chưa thuộc Tổ chức: { token, message, orgName, sent } để đề nghị đăng ký trở thành Khách
   const [joinOffer, setJoinOffer] = useState(null);
+
+  // Tổ chức sở hữu AI Gateway này (đọc trước khi đăng nhập; trong Workspace được bổ sung từ /api/auth/me)
+  const [orgInfo, setOrgInfo] = useState(ORG_LOADING);
+  const loadOrgInfo = async () => {
+    setOrgInfo(prev => (prev.status === 'ok' ? prev : ORG_LOADING));
+    const res = await iThunderAPI.getOrgInfo();
+    if (res?.status === 'SUCCESS' && res.org_id) {
+      setOrgInfo({ status: 'ok', orgId: res.org_id, orgName: res.org_name || res.org_id, orgUrl: res.org_url || '', location: res.location || '' });
+    } else {
+      setOrgInfo(prev => (prev.status === 'ok' ? prev : { ...ORG_LOADING, status: 'error' }));
+    }
+  };
+  const loadOrgInfoOnMount = useLatestCallback(loadOrgInfo);
+  useEffect(() => { loadOrgInfoOnMount(); }, [loadOrgInfoOnMount]);
+
+  // Tiêu đề thẻ trình duyệt kèm Mã Tổ chức: phân biệt khi mở AI Workspace của nhiều Tổ chức cùng lúc
+  useEffect(() => {
+    document.title = orgInfo.status === 'ok' ? `${orgInfo.orgId} · iThunder AI Workspace` : 'iThunder AI Workspace';
+  }, [orgInfo.status, orgInfo.orgId]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFaceProcessing, setIsFaceProcessing] = useState(false);
 
@@ -176,6 +239,10 @@ export default function App() {
   const refreshHistoryPolicy = async () => {
     try {
       const me = await iThunderAPI.getCurrentUser();
+      // Gateway chưa trả /api/org/info (vd. phiên bản Backend cũ) => lấy Tổ chức từ thông tin phiên
+      if (me?.org_id) {
+        setOrgInfo(prev => (prev.status === 'ok' ? prev : { ...ORG_LOADING, status: 'ok', orgId: me.org_id, orgName: me.org_name || me.user_org || me.org_id }));
+      }
       if (me?.owner_id) {
         setUserData(prev => {
           if (prev.ownerId === me.owner_id || String(prev.userId) !== String(me.user_id)) return prev;
@@ -1175,6 +1242,9 @@ export default function App() {
   // GIAO DIỆN KẾT XUẤT CHÍNH (HTML CORES)
   // =========================================================================
 
+  // Tên Tổ chức hiển thị trong Workspace: theo AI Gateway; dự phòng bằng Tổ chức ghi trong phiên đăng nhập
+  const workspaceOrgName = orgInfo.status === 'ok' ? orgInfo.orgName : (userData.userOrg || 'Chưa xác định Tổ chức');
+
   // =========================================================================
   // XỬ LÝ KHỐI CHỨC NĂNG: NHẬN PASSCODE QUA EMAIL (GET_CODE)
   // =========================================================================
@@ -1217,6 +1287,7 @@ export default function App() {
               <KeyRound size={18} className="text-indigo-400" /> Nhận PassCode qua Email
             </h3>
             <p className="text-[11px] text-slate-400 mt-1">Cung cấp tài khoản Email đã đăng ký với tổ chức</p>
+            <GatewayOrgLine org={orgInfo} />
           </div>
 
           <form onSubmit={handleGetCodeSubmit} className="space-y-4">
@@ -1303,6 +1374,7 @@ export default function App() {
               <UserPlus size={18} className="text-emerald-400" /> Đăng ký Tài khoản mới
             </h3>
             <p className="text-[11px] text-slate-400 mt-1">Khởi tạo hồ sơ định danh làm việc trên iThunder AI OS</p>
+            <GatewayOrgLine org={orgInfo} />
             <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">Đã có tài khoản ở Tổ chức khác? Nhập Email đó: hệ thống gửi liên kết để thêm tài khoản vào Tổ chức này.</p>
           </div>
 
@@ -1397,10 +1469,8 @@ export default function App() {
               {/* TĂNG KÍCH THƯỚC TIÊU ĐỀ CHÍNH & MÀU TRẮNG SÁNG TOÀN PHẦN */}
               <h1 className="text-2xl font-extrabold tracking-tight text-white mt-2">iThunder AI Gateway</h1>
  
-              {/* LÀM NỔI BẬT THÔNG BÁO KẾT NỐI HẠ TẦNG */}
-              <div className="w-full bg-cyan-950/50 border border-cyan-500/50 text-cyan-300 text-xs rounded-xl py-3 px-4 font-bold mt-4 shadow-sm">
-                iThunder AI Gateway đã được kết nối với hạ tầng iThunder AI Platform
-              </div>
+              {/* TỔ CHỨC SỞ HỮU AI GATEWAY: người dùng biết mình đang đăng nhập vào AI Workspace của Tổ chức nào */}
+              <GatewayOrgCard org={orgInfo} onRetry={loadOrgInfo} />
             </div>
 
             {joinOffer ? (
@@ -1478,6 +1548,7 @@ export default function App() {
       <div className="w-screen h-app bg-[#090d16] flex items-center justify-center text-slate-200 select-none">
         <div className="w-full max-w-sm bg-slate-900/60 border border-slate-700/30 rounded-2xl p-6 text-center shadow-2xl">
           <h3 className="text-base font-bold text-white flex items-center justify-center gap-2 mb-2"><Camera size={18} className="text-cyan-400" /> Kích hoạt Trắc sinh học FaceID</h3>
+          <div className="-mt-1 mb-2"><GatewayOrgLine org={orgInfo} /></div>
           <p className="text-xs text-slate-400 mb-4 px-2">{statusMessage}</p>
 
           <div className="relative w-64 h-64 rounded-full overflow-hidden border border-slate-700 bg-slate-950 mx-auto shadow-2xl mb-4">
@@ -1532,6 +1603,15 @@ export default function App() {
           <div className="flex flex-col gap-1">
             <img src="/logo.png" alt="iThunder Logo"  className="w-40 h-20 object-contain shrink-0" />
             <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
+            {/* Tổ chức đang làm việc: cần Tổ chức khác thì đăng xuất rồi vào AI Gateway của Tổ chức đó */}
+            <div className="my-1 px-2.5 py-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30"
+              title={`Bạn đang làm việc trong AI Workspace của ${workspaceOrgName}. Cần làm việc với Tổ chức khác? Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.`}>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                <Building2 size={11} /> Tổ chức
+              </span>
+              <span className="block text-[12px] font-semibold text-fg-strong leading-snug break-words">{workspaceOrgName}</span>
+              {orgInfo.orgId && <span className="block text-[11px] text-fg-muted font-mono">Mã: {orgInfo.orgId}</span>}
+            </div>
             <span className="text-[12px] text-fg-muted truncate">Họ và Tên: <b className="text-fg">{userData.userName}</b></span>
             <span className="text-[12px] text-fg-muted truncate">Mã ID: <b className="text-fg font-mono">{userData.ownerId || '—'}</b></span>
             <span className="text-[12px] text-fg-muted truncate">Vai trò: <b className="text-fg">{userData.userRole}</b></span>
@@ -1710,7 +1790,14 @@ export default function App() {
               <button onClick={() => setIsLeftSidebarOpen(true)} className="p-1 text-fg-muted hover:text-fg-strong mr-1"><Menu size={16} /></button>
             )}
             <Sparkles size={14} className="text-blue-600 dark:text-blue-400" />
-            <span className="text-xs font-bold uppercase tracking-wider text-fg">AI Chat/Work</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-fg whitespace-nowrap">AI Chat/Work</span>
+            {/* Màn hình rộng: nhắc Tổ chức ngay trên thanh tiêu đề (màn hình hẹp đã có ở LeftSidebar) */}
+            <span className="hidden xl:inline-flex items-center gap-1 min-w-0 max-w-[22rem] text-[11px] text-fg-muted" title={`AI Workspace của ${workspaceOrgName}`}>
+              <span className="text-fg-subtle">·</span>
+              <Building2 size={12} className="shrink-0 text-blue-600 dark:text-blue-400" />
+              <span className="truncate">{workspaceOrgName}</span>
+              {orgInfo.orgId && <span className="shrink-0 font-mono text-fg-subtle">({orgInfo.orgId})</span>}
+            </span>
           </div>
 
           <div className="flex items-center gap-3">
