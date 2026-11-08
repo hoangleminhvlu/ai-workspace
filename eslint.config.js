@@ -10,12 +10,24 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      // eslint-plugin-react-hooks 5.x cung cấp flat config qua 'recommended-latest' (configs.flat chỉ có từ bản 6)
+      reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: {
+      // Biến dùng trong JSX (<App />, <Route />...) và hằng số viết hoa không bị báo là "không dùng"
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+  {
+    // Tệp cấu hình chạy bằng Node.js (vite, tailwind, postcss, eslint)
+    files: ['*.config.js'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])
