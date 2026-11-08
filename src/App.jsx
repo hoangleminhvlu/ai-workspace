@@ -71,8 +71,44 @@ const formatDateTime = (iso) => {
 };
 
 // Tổ chức sở hữu AI Gateway (Backend /api/org/info): status 'loading' | 'ok' | 'error'
-const ORG_LOADING = { status: 'loading', orgId: '', orgName: '', orgUrl: '', location: '' };
+// network: 'internet' | 'onpremise'; switchEnabled + organizations: chọn Tổ chức khác (chỉ AI Gateway chạy trên Internet)
+const ORG_LOADING = { status: 'loading', orgId: '', orgName: '', orgUrl: '', location: '', network: '', switchEnabled: false, organizations: [] };
 const OTHER_ORG_HINT = 'Không phải Tổ chức của bạn? Hãy đăng nhập tại AI Gateway của Tổ chức mình (địa chỉ do Quản trị viên Tổ chức cung cấp).';
+const ONPREM_ORG_HINT = 'AI Gateway nội bộ (On-Premise): chỉ phục vụ mạng của Tổ chức này. Không phải Tổ chức của bạn? Hãy dùng AI Gateway do Quản trị viên Tổ chức mình cung cấp.';
+
+// Chỉ chuyển trang tới https (hoặc http://localhost khi phát triển): kiểm tra lại phía máy trạm dù Backend đã lọc danh mục
+const isSafeWorkspaceUrl = (url) => /^https:\/\/[^\s/@]+/i.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
+
+// Chọn Tổ chức khác rồi chuyển sang AI Workspace của Tổ chức đó (AI Gateway chạy trên Internet)
+const OrgSwitcher = ({ organizations }) => {
+  const [target, setTarget] = useState('');
+  const others = organizations.filter(o => !o.current && isSafeWorkspaceUrl(o.workspace_url));
+  const chosen = others.find(o => o.org_id === target);
+  if (others.length === 0) return <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{OTHER_ORG_HINT}</div>;
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <label htmlFor="org-switch" className="text-[11px] text-slate-400 leading-relaxed">
+        Không phải Tổ chức của bạn? Chọn Tổ chức để chuyển sang AI Workspace tương ứng:
+      </label>
+      <div className="flex gap-2">
+        <select id="org-switch" value={target} onChange={e => setTarget(e.target.value)}
+          className="flex-1 min-w-0 bg-slate-900 border border-slate-600 text-slate-100 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-400">
+          <option value="">— Chọn Tổ chức —</option>
+          {others.map(o => <option key={o.org_id} value={o.org_id}>{o.org_name} ({o.org_id})</option>)}
+        </select>
+        <button type="button" disabled={!chosen} onClick={() => window.location.assign(chosen.workspace_url)}
+          className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white disabled:bg-slate-700 disabled:text-slate-400 transition-colors">
+          Chuyển
+        </button>
+      </div>
+      {chosen && (
+        <div className="text-[10px] text-slate-500 break-all leading-relaxed">
+          Mở AI Workspace: {chosen.workspace_url}{chosen.description ? ` · ${chosen.description}` : ''}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Khối "Tổ chức" trên trang Đăng nhập: người dùng biết mình đang vào AI Workspace của Tổ chức nào trước khi nhập PassCode
 const GatewayOrgCard = ({ org, onRetry }) => {
@@ -93,14 +129,21 @@ const GatewayOrgCard = ({ org, onRetry }) => {
   }
   return (
     <div className="w-full bg-cyan-950/40 border border-cyan-500/50 rounded-xl py-3 px-4 mt-4 text-left shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-        <Building2 size={12} /> AI Workspace của Tổ chức
+      <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5"><Building2 size={12} /> AI Workspace của Tổ chức</span>
+        {org.network && (
+          <span className={`px-1.5 py-0.5 rounded border text-[9px] ${org.network === 'internet' ? 'border-cyan-500/50 text-cyan-300' : 'border-slate-500/60 text-slate-300'}`}>
+            {org.network === 'internet' ? 'Internet' : 'Mạng nội bộ'}
+          </span>
+        )}
       </div>
       <div className="text-sm font-extrabold text-white mt-1 leading-snug">{org.orgName}</div>
       <div className="text-[11px] text-cyan-200/80 mt-0.5 font-mono">
         Mã Tổ chức: {org.orgId}{org.location ? ` · Máy chủ: ${org.location}` : ''}
       </div>
-      <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{OTHER_ORG_HINT}</div>
+      {org.switchEnabled
+        ? <OrgSwitcher organizations={org.organizations} />
+        : <div className="text-[11px] text-slate-400 mt-2 leading-relaxed">{org.network === 'onpremise' ? ONPREM_ORG_HINT : OTHER_ORG_HINT}</div>}
     </div>
   );
 };
@@ -134,7 +177,10 @@ export default function App() {
     setOrgInfo(prev => (prev.status === 'ok' ? prev : ORG_LOADING));
     const res = await iThunderAPI.getOrgInfo();
     if (res?.status === 'SUCCESS' && res.org_id) {
-      setOrgInfo({ status: 'ok', orgId: res.org_id, orgName: res.org_name || res.org_id, orgUrl: res.org_url || '', location: res.location || '' });
+      setOrgInfo({
+        status: 'ok', orgId: res.org_id, orgName: res.org_name || res.org_id, orgUrl: res.org_url || '', location: res.location || '',
+        network: res.network || '', switchEnabled: !!res.switch_enabled, organizations: Array.isArray(res.organizations) ? res.organizations : []
+      });
     } else {
       setOrgInfo(prev => (prev.status === 'ok' ? prev : { ...ORG_LOADING, status: 'error' }));
     }
@@ -1605,7 +1651,7 @@ export default function App() {
             <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
             {/* Tổ chức đang làm việc: cần Tổ chức khác thì đăng xuất rồi vào AI Gateway của Tổ chức đó */}
             <div className="my-1 px-2.5 py-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30"
-              title={`Bạn đang làm việc trong AI Workspace của ${workspaceOrgName}. Cần làm việc với Tổ chức khác? Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.`}>
+              title={`Bạn đang làm việc trong AI Workspace của ${workspaceOrgName}. Cần làm việc với Tổ chức khác? ${orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1">
                 <Building2 size={11} /> Tổ chức
               </span>
