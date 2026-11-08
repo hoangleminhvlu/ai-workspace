@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, gatewayAPI, gatewayKind, normalizeGatewayUrl } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, notifyAuthChanged, gatewayAPI, gatewayKind, normalizeGatewayUrl } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 import useLatestCallback from './hooks/useLatestCallback';
 
@@ -291,12 +291,17 @@ export default function App() {
 
   // Mở trang: Web đọc Tổ chức của chính tên miền. Ứng dụng máy trạm chưa ghi nhớ AI Gateway thì tự dò chính địa chỉ
   // đang mở (dev proxy / AI Gateway phục vụ luôn giao diện) rồi DEFAULT_GATEWAY_URL; không được thì chờ người dùng nhập.
+  // Chỉ DÒ (không đổi AI Gateway ứng viên) cho tới khi tìm được địa chỉ phản hồi: hai lượt dò chạy cùng lúc (React
+  // StrictMode chạy effect hai lần khi phát triển) không làm lượt này hủy kết quả của lượt kia.
   const loadOrgInfoOnMount = useLatestCallback(async () => {
     if (!CLIENT_APP || gatewayAPI.saved()) { loadOrgInfo(); return; }
-    for (const url of gatewayAPI.discoveryOrder()) {
-      if (await connectGateway(url)) return;
+    const order = gatewayAPI.discoveryOrder();
+    for (const url of order) {
+      const res = await iThunderAPI.getOrgInfo(url);
+      if (res?.status === 'SUCCESS' && res.org_id) { await connectGateway(url); return; }
     }
-    if (!gatewayAPI.current()) setOrgInfo({ ...ORG_LOADING, status: 'none' });
+    if (order.length) await connectGateway(order[order.length - 1]);   // hiện lỗi kèm địa chỉ để người dùng sửa
+    else setOrgInfo({ ...ORG_LOADING, status: 'none' });
   });
   useEffect(() => { loadOrgInfoOnMount(); }, [loadOrgInfoOnMount]);
 
@@ -686,6 +691,7 @@ export default function App() {
             userOrg: res.user_org
           };
           localStorage.setItem("tara_user", JSON.stringify(sessionUser));
+          notifyAuthChanged();
 
           setUserData(sessionUser);
           setActiveThreadId(newThreadId());
@@ -814,6 +820,7 @@ export default function App() {
           userOrg: res.user_org
         };
         localStorage.setItem("tara_user", JSON.stringify(sessionUser));
+        notifyAuthChanged();
         setUserData(sessionUser);
         setActiveThreadId(newThreadId());
         setViewState('WORKSPACE'); // Chuyển thẳng trang
@@ -1906,6 +1913,7 @@ export default function App() {
                 // 2. Xóa sạch dấu vết lưu trữ cục bộ trên trình duyệt vật lý
                 localStorage.removeItem("tara_token");
                 localStorage.removeItem("tara_user");
+                notifyAuthChanged();   // đóng kết nối /ws/comm dùng chung, kết thúc cuộc gọi đang có
                 // Giữ lại "tara_theme": đây là tùy chọn giao diện của máy trạm, không phải dữ liệu phiên
 
                 // 3. Xóa sạch vùng nhớ đệm phiên (nếu có)

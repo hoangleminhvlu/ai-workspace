@@ -148,9 +148,13 @@ const getAuthHeaders = () => {
  * Phiên làm việc hết hạn / token không hợp lệ (HTTP 401): xóa phiên cục bộ và đưa người dùng về màn hình đăng nhập.
  * App.jsx lắng nghe sự kiện "tara:session-expired" để chuyển phân cảnh LOGIN mà không cần tải lại trang.
  */
+// Đăng nhập / đăng xuất trong tab này: CommProvider (kết nối /ws/comm dùng chung, cuộc gọi) đọc lại mã truy cập
+export const notifyAuthChanged = () => window.dispatchEvent(new Event("tara:auth"));
+
 export const handleUnauthorized = (message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại!") => {
   localStorage.removeItem("tara_token");
   localStorage.removeItem("tara_user");
+  notifyAuthChanged();
   if (window.location.pathname !== "/") {
     try { sessionStorage.setItem("tara_logout_reason", message); } catch { /* bỏ qua */ }
     window.location.assign("/");
@@ -896,6 +900,9 @@ export const commAPI = {
   // listUnits => { units: [{ unit: "<Nhánh>/<gid>", description, member_count }] }
   searchUsers: (q) => commRequest("GET", `/users/search?q=${encodeURIComponent(q)}`, undefined, "tìm người dùng"),
   listUnits: () => commRequest("GET", "/units", undefined, "truy vấn phân vùng OpenLDAP"),
+
+  // Nhật ký cuộc gọi thoại / video của hội thoại: { calls: [{ id, media, status, caller_id, callee_id, duration, ... }] }
+  listCalls: (convId) => commRequest("GET", `/calls?conversation_id=${encodeURIComponent(convId)}`, undefined, "tải nhật ký cuộc gọi"),
 
   // Tải tệp lên hội thoại => { attachment: { id, name, size, mime } }; gửi kèm tin bằng attachments: [id]
   uploadAttachment: async (convId, file) => {

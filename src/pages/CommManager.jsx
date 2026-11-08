@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, MessagesSquare, Plus, Search } from 'lucide-react';
 import { commAPI } from '../services/api';
-import { CommSocket } from '../services/commSocket';
+import { useComm } from '../comm/commContext';
 import { Button, Notice, inputCls } from './identity/shared';
 import { Avatar } from './comm/shared';
 import { conversationTitle, formatShortTime, newClientId } from './comm/utils';
@@ -18,6 +18,7 @@ import NewConversationDialog from './comm/NewConversationDialog';
 // Trang Trao đổi trực tuyến (Text Chat): người dùng ↔ người dùng, ↔ nhóm, ↔ Trợ lý AI.
 // Mọi tin nhắn, thành viên, tệp đính kèm nằm trên Backend (PostgreSQL); trang chỉ giữ trong bộ nhớ và tải lại
 // qua /api/comm khi mở trang hoặc khi kết nối lại /ws/comm. Hội thoại đang mở nằm trên URL (?c=<mã>).
+// Kết nối /ws/comm và cuộc gọi thoại / video do CommProvider (src/comm) giữ chung cho mọi trang của AI Workspace.
 
 const TYPING_SHOW_MS = 4000;
 
@@ -40,9 +41,8 @@ export default function CommManager() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeId = Number(searchParams.get('c')) || null;
 
-  const [info, setInfo] = useState(null);
+  const { info, infoError, status, subscribe, send, request, call, calls } = useComm();
   const [notice, setNotice] = useState(null);
-  const [status, setStatus] = useState('connecting');
   const [conversations, setConversations] = useState(null);
   const [detail, setDetail] = useState(null);
   const [threads, setThreads] = useState({});        // conv_id -> { items, hasMore, loaded, loading }
@@ -53,12 +53,11 @@ export default function CommManager() {
   const [showNew, setShowNew] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
-  const socketRef = useRef(null);
   const activeRef = useRef(activeId);
   const lastReadRef = useRef({});
   const handlerRef = useRef(() => {});
   const convsRef = useRef(null);
-  const connectedOnce = useRef(false);
+  const connectedOnce = useRef(status === 'online');   // kết nối chung có thể đã sẵn sàng trước khi mở trang
   activeRef.current = activeId;
   convsRef.current = conversations;
   const me = info?.user_id;
@@ -179,20 +178,10 @@ export default function CommManager() {
     }
   };
 
-  // ------------------------------------------------------------------ khởi động: quyền, danh sách, kết nối /ws/comm
-  useEffect(() => {
-    let socket = null;
-    commAPI.getInfo().then(res => {
-      if (res?.status !== 'SUCCESS') { setNotice({ type: 'error', text: res?.detail || 'Không tải được thông tin Trao đổi trực tuyến.' }); return; }
-      setInfo(res);
-      if (!res.allowed) return;
-      loadConversations();
-      socket = new CommSocket({ onEvent: (f) => handlerRef.current(f), onStatus: setStatus });
-      socketRef.current = socket;
-      socket.connect();
-    });
-    return () => { socket?.close(); socketRef.current = null; };
-  }, [loadConversations]);
+  // ------------------------------------------------------------------ khởi động: quyền, danh sách, nhận khung từ /ws/comm dùng chung
+  useEffect(() => subscribe((f) => handlerRef.current(f)), [subscribe]);
+  useEffect(() => { if (info?.allowed) loadConversations(); }, [info, loadConversations]);
+  useEffect(() => { if (infoError) setNotice({ type: 'error', text: infoError }); }, [infoError]);
 
   useEffect(() => {
     setDetail(d => (d?.id === activeId ? d : null));
@@ -209,13 +198,13 @@ export default function CommManager() {
       const last = [...activeItems].reverse().find(m => typeof m.id === 'number');
       if (!last || last.id <= (lastReadRef.current[activeId] || 0)) return;
       lastReadRef.current[activeId] = last.id;
-      if (!socketRef.current?.send({ type: 'read', conversation_id: activeId, message_id: last.id })) commAPI.markRead(activeId, last.id);
+      if (!send({ type: 'read', conversation_id: activeId, message_id: last.id })) commAPI.markRead(activeId, last.id);
       setConversations(cs => cs?.map(c => (c.id === activeId ? { ...c, unread: 0 } : c)) ?? cs);
     };
     markRead();
     document.addEventListener('visibilitychange', markRead);
     return () => document.removeEventListener('visibilitychange', markRead);
-  }, [activeId, activeItems]);
+  }, [activeId, activeItems, send]);
 
   // ------------------------------------------------------------------ thao tác
   const sendMessage = async ({ content, attachments }, retry) => {
@@ -234,7 +223,7 @@ export default function CommManager() {
       aimodel: localStorage.getItem('tara_model') || undefined, runtime: localStorage.getItem('tara_runtime') || undefined,
     };
     let message = null, error = null;
-    const viaSocket = socketRef.current?.request({ type: 'send', ...frame });
+    const viaSocket = request({ type: 'send', ...frame });
     if (viaSocket) {
       const res = await viaSocket;
       if (res.type === 'ack') message = res.message; else error = res.detail;
@@ -244,6 +233,14 @@ export default function CommManager() {
     }
     if (message) { upsertMessage(message); noteInList(message); }
     else upsertMessage({ ...pending, pending: false, failed: true, error: error || 'Không gửi được tin nhắn.' });
+  };
+
+  // Gọi thoại / video 1-1 với người còn lại của hội thoại trực tiếp (giao diện cuộc gọi do CommProvider hiển thị)
+  const startCall = async (media) => {
+    const peer = detail?.members.find(m => m.user_id !== me);
+    if (!peer) return;
+    const error = await calls.startCall({ conversationId: detail.id, peerId: peer.user_id, peerName: peer.user_name }, media);
+    if (error) setNotice({ type: 'error', text: error });
   };
 
   const editMessage = async (msg, content) => {
@@ -346,7 +343,8 @@ export default function CommManager() {
               onLoadOlder={() => loadMessages(activeId, threads[activeId]?.items.find(m => typeof m.id === 'number')?.id)}
               onSend={(data) => sendMessage(data)} onRetry={(msg) => sendMessage(msg, msg)} onEdit={editMessage} onDelete={deleteMessage}
               onUpload={(file) => commAPI.uploadAttachment(activeId, file)} onDownload={downloadAttachment}
-              onTyping={() => socketRef.current?.send({ type: 'typing', conversation_id: activeId })} />
+              onTyping={() => send({ type: 'typing', conversation_id: activeId })}
+              callsAllowed={!!info.calls?.allowed} inCall={!!call && call.phase !== 'ended'} onCall={startCall} />
           ) : (
             <div className={`${activeId ? 'flex' : 'hidden md:flex'} flex-1 items-center justify-center text-xs text-fg-subtle`}>
               {activeId ? <span className="flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Đang mở hội thoại...</span>

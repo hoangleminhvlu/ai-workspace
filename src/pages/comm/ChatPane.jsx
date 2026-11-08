@@ -5,12 +5,13 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Reply, RotateCw, Send, Trash2, Users, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Phone, PhoneMissed, Reply, RotateCw, Send, Trash2, Users, Video, X } from 'lucide-react';
 import { Avatar } from './shared';
 import { KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './utils';
 
 // Khung trò chuyện của một hội thoại: tin nhắn (Markdown, không nhận HTML thô), trả lời/sửa/xóa tin của mình,
-// tệp đính kèm, luồng trả lời của Trợ lý AI, "đang gõ", "đã xem" (hội thoại trực tiếp).
+// tệp đính kèm, luồng trả lời của Trợ lý AI, "đang gõ", "đã xem" (hội thoại trực tiếp), nút gọi thoại / video và
+// tin nhắn ghi lại cuộc gọi (kind = 'call').
 
 const TYPING_THROTTLE_MS = 3000;
 const markdownComponents = {
@@ -32,6 +33,17 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(msg.content);
 
+  if (msg.sender_type === 'system' && msg.kind === 'call') {
+    const missed = ['missed', 'busy', 'rejected'].includes(msg.metadata?.status);
+    const Icon = missed ? PhoneMissed : msg.metadata?.media === 'video' ? Video : Phone;
+    return (
+      <div className="self-center inline-flex items-center gap-1.5 px-3 py-1 my-0.5 rounded-full border border-line bg-elevated text-[11px] text-fg-muted">
+        <Icon size={12} className={missed ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'} />
+        <span>{msg.content.replace(/^\S+\s/, '')}</span>
+        <span className="text-fg-subtle">· {formatShortTime(msg.created_at)}</span>
+      </div>
+    );
+  }
   if (msg.sender_type === 'system') {
     return <div className="text-center text-[11px] text-fg-subtle py-1">{msg.content}</div>;
   }
@@ -168,7 +180,7 @@ function Composer({ conversation, limits, assistantAvailable, onSend, onUpload, 
 }
 
 export default function ChatPane({ conversation, me, thread, aiStream, typingNames, status, limits, assistantAvailable, replyTo, setReplyTo,
-  onBack, onOpenMembers, onLoadOlder, onSend, onRetry, onEdit, onDelete, onUpload, onDownload, onTyping }) {
+  onBack, onOpenMembers, onLoadOlder, onSend, onRetry, onEdit, onDelete, onUpload, onDownload, onTyping, callsAllowed, inCall, onCall }) {
   const scrollRef = useRef(null);
   const nearBottom = useRef(true);
   const prevHeight = useRef(null);
@@ -216,6 +228,15 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
             {conversation.kind !== 'direct' && conversation.metadata?.domain && <span>· Kho {conversation.metadata.domain}</span>}
           </div>
         </div>
+        {conversation.kind === 'direct' && callsAllowed && (['audio', 'video'].map(media => {
+          const CallIcon = media === 'video' ? Video : Phone;
+          const label = media === 'video' ? 'Gọi video' : 'Gọi thoại';
+          return (
+            <button key={media} onClick={() => onCall(media)} disabled={inCall || status !== 'online'} aria-label={label}
+              title={inCall ? 'Bạn đang trong một cuộc gọi' : status !== 'online' ? 'Đang kết nối máy chủ Trao đổi trực tuyến...' : label}
+              className="p-2 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong disabled:opacity-40 disabled:hover:bg-transparent"><CallIcon size={16} /></button>
+          );
+        }))}
         <button onClick={onOpenMembers} aria-label="Thông tin hội thoại" className="p-2 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong"><Users size={16} /></button>
       </header>
 
