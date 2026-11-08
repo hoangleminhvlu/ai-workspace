@@ -3,26 +3,16 @@ import react from '@vitejs/plugin-react'
 
 // iThunder AI Workspace - cấu hình Vite cho Desktop App (Tauri) độc lập
 
-// Gateway thật: dùng khi build (dist, Tauri, Capacitor) — giữ nguyên window.TARA_CONFIG trong index.html
-const PRODUCTION_GATEWAY = 'https://aigate.is-tech.vn';
-
-// Chế độ phát triển (npm run dev): Frontend trên Windows gọi Backend FastAPI chạy trong WSL tại cổng 8088.
-// Đổi bằng biến môi trường, vd. dùng lại Gateway thật: VITE_DEV_GATEWAY=https://aigate.is-tech.vn npm run dev
+// AI Workspace gọi AI Gateway trên chính tên miền đang mở (window.TARA_CONFIG để trống trong index.html):
+// bản build triển khai sau nginx của từng Tổ chức; ứng dụng Desktop (Tauri/Capacitor) dùng Gateway mặc định trong api.js.
+// Chế độ phát triển (npm run dev): trang chạy ở localhost:5173, server.proxy bên dưới chuyển /api và /ws về Backend FastAPI
+// trong WSL (cổng 8088). Đổi bằng biến môi trường, vd. dùng Gateway thật: VITE_DEV_GATEWAY=https://aigate.is-tech.vn npm run dev
 const devGateway = (env) => (env.VITE_DEV_GATEWAY || 'http://localhost:8088').replace(/\/$/, '');
-
-// Thay địa chỉ Gateway trong window.TARA_CONFIG của index.html khi chạy dev server (không ảnh hưởng bản build)
-const devGatewayPlugin = (gateway) => ({
-  name: 'tara-dev-gateway',
-  apply: 'serve',
-  transformIndexHtml: (html) => html
-    .replaceAll(`wss://${PRODUCTION_GATEWAY.slice('https://'.length)}`, gateway.replace(/^http/, 'ws'))
-    .replaceAll(PRODUCTION_GATEWAY, gateway),
-});
 
 export default defineConfig(({ mode }) => {
   const gateway = devGateway(loadEnv(mode, process.cwd(), 'VITE_'));
   return {
-  plugins: [react(), devGatewayPlugin(gateway)],
+  plugins: [react()],
   clearScreen: false,
   base: './', // Bắt buộc: đảm bảo build ra file tĩnh chạy được ở mọi nơi độc lập (Tauri/Electron)
   

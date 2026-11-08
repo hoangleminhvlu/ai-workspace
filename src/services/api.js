@@ -4,16 +4,19 @@
  * Version 6.09.27
  */
 
-// Tự động nhận diện cấu hình tĩnh nhúng từ window.TARA_CONFIG của index.html
+// AI Gateway của ứng dụng Desktop (Tauri/Capacitor không chạy trên http/https) khi không khai báo API_GATEWAY_URL
+const DESKTOP_GATEWAY = "https://aigate.is-tech.vn";
+
+// Địa chỉ AI Gateway: mặc định là CHÍNH TÊN MIỀN đang mở AI Workspace — nginx của mỗi Tổ chức chuyển /api và /ws về
+// Backend của Tổ chức đó (aiwork.is-tech.vn -> AI-TECH, ai-tech.vlu.edu.vn -> VLU-CNTT...), nên một bản build dùng chung
+// cho mọi Tổ chức. Chỉ khai báo API_GATEWAY_URL / WS_GATEWAY_URL trong window.TARA_CONFIG (index.html) khi AI Workspace
+// và AI Gateway nằm ở hai tên miền khác nhau.
 export const getGatewayConfig = () => {
-  const config = window.TARA_CONFIG || {
-    API_GATEWAY_URL: "https://aigate.is-tech.vn",
-    WS_GATEWAY_URL: "wss://aigate.is-tech.vn"
-  };
-  return {
-    httpUrl: config.API_GATEWAY_URL.replace(/\/$/, ""),
-    wsUrl: config.WS_GATEWAY_URL.replace(/\/$/, "")
-  };
+  const config = window.TARA_CONFIG || {};
+  const onWeb = /^https?:$/.test(window.location.protocol);
+  const httpUrl = (config.API_GATEWAY_URL || (onWeb ? window.location.origin : DESKTOP_GATEWAY)).replace(/\/$/, "");
+  const wsUrl = (config.WS_GATEWAY_URL || httpUrl.replace(/^http/, "ws")).replace(/\/$/, "");
+  return { httpUrl, wsUrl };
 };
 
 const { httpUrl } = getGatewayConfig();

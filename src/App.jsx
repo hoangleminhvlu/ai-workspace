@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 import useLatestCallback from './hooks/useLatestCallback';
 
@@ -527,17 +527,7 @@ export default function App() {
   // KẾT NỐI WEBSOCKET XÁC THỰC VÀ BIỂU MẪU ĐĂNG NHẬP
   // =========================================================================
   
-  // CHUẨN HÓA: Định nghĩa hàm bóc tách cổng cấu hình Gateway trực tiếp từ index.html hoặc Fallback tĩnh
-  const getGatewayConfig = () => {
-    const config = window.TARA_CONFIG || {
-      API_GATEWAY_URL: "https://aigate.is-tech.vn",
-      WS_GATEWAY_URL: "wss://aigate.is-tech.vn"
-    };
-    return {
-      httpUrl: config.API_GATEWAY_URL.replace(/\/$/, ""),
-      wsUrl: config.WS_GATEWAY_URL.replace(/\/$/, "")
-    };
-  };
+  // Địa chỉ AI Gateway: dùng chung getGatewayConfig của services/api.js (mặc định là chính tên miền đang mở AI Workspace)
 
   const initWebSocketConnection = (onOpenCallback) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -685,7 +675,8 @@ export default function App() {
     setJoinOffer(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      // Cùng AI Gateway với mọi API khác (/api/org/info, /ws/auth...): đúng Backend của Tổ chức đang mở
+      const response = await fetch(`${getGatewayConfig().httpUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passcode: passcode, clientIp: clientIp })
@@ -1302,8 +1293,8 @@ export default function App() {
       setStatusMessage('');
 
       try {
-        // Thay vì dùng iThunderAPI chưa rõ cấu hình, gọi trực tiếp Endpoint Backend xử lý
-        const response = await fetch('/api/auth/get-code', {
+        // Gọi trực tiếp Endpoint Backend xử lý trên cùng AI Gateway với các API khác
+        const response = await fetch(`${getGatewayConfig().httpUrl}/api/auth/get-code`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email })
