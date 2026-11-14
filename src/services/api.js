@@ -467,6 +467,22 @@ export const iThunderAPI = {
   },
 
   // Gửi lệnh đồng bộ thư mục vật lý tại máy chủ Backend
+  // Quản trị viên của Tổ chức đổi tên gọi / mô tả một kho cấp Tổ chức (lưu trên OpenLDAP; khóa kho và quyền không đổi).
+  // Kho của phân vùng (Dự án, Thực tập, Hội đồng) sửa tại Quản trị Định danh > Phân vùng.
+  updateStoreInfo: async (storageKey, displayName, description = "") => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/rag/store-info`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ storage_key: storageKey, display_name: displayName, description })
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi cập nhật tên gọi / mô tả Kho Tri thức:", error);
+      throw error;
+    }
+  },
+
   syncDirectory: async (domain) => {
     try {
       const token = localStorage.getItem("tara_token") || "";
@@ -537,6 +553,25 @@ export const iThunderAPI = {
     }
   },
 
+  // Lưu một câu trả lời của khung AI Chat/Work thành tập tin DOCX (AI Gateway dựng từ Markdown); tên tập tin do Gateway đặt
+  exportChatDocx: async (content, title = "") => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/chat/export-docx`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ content, title })
+      });
+      if (!response.ok) return await parseResponse(response);
+      const named = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get("Content-Disposition") || "");
+      let filename = "iThunder-AI.docx";
+      try { if (named) filename = decodeURIComponent(named[1]); } catch { /* giữ tên mặc định */ }
+      return { status: "SUCCESS", blob: await response.blob(), filename };
+    } catch (error) {
+      console.error("[iThunder API] Lỗi tạo tập tin DOCX:", error);
+      throw error;
+    }
+  },
+
   // Tải tập tin mới vào Kho Dữ liệu; sync=true để RAG ngay; HTTP 409 (trùng tên) => hỏi người dùng rồi gửi lại với overwrite=true
   uploadDataFile: async (file, domain, { subdir = "", overwrite = false, sync = true } = {}) => {
     try {
@@ -559,6 +594,21 @@ export const iThunderAPI = {
   },
 
   // Xóa tập tin: Backend chuyển vào thùng rác .Trash của Kho và gỡ tri thức liên quan
+  // Gỡ các đoạn tri thức (chunks) của một tệp đã RAG khỏi Kho Tri thức, không đụng tới tập tin trong Kho Dữ liệu.
+  // ragId: "rag_id" của tệp trong Kho Dữ liệu hoặc "id" của mục rag_only do listDataFiles trả về
+  deleteRagChunks: async (domain, ragId) => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/data/rag-chunks?domain=${encodeURIComponent(domain)}&id=${encodeURIComponent(ragId)}`, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi gỡ đoạn tri thức khỏi Kho Tri thức:", error);
+      throw error;
+    }
+  },
+
   deleteDataFile: async (domain, path) => {
     try {
       const response = await fetch(`${gatewayUrl()}/api/data/file?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {

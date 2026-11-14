@@ -10,10 +10,11 @@ import {
   UserPlus, CornerDownLeft, Sparkles, FolderGit, MessageSquare,
   LogOut, Plus, Send, Paperclip, ChevronLeft, ChevronRight, Menu,
   Database, FileText, HardDrive, RefreshCw, Trash2, Eye,
-  Upload, Download, X, FolderOpen, Search, Users, UserCircle, Cable, MessagesSquare, FolderKanban, Globe, History, Activity, Library,
+  Upload, Download, X, FolderOpen, Search, Users, UserCircle, MessagesSquare, FolderKanban, Globe, History, Activity, Eraser, FileX,
   Building2, Server
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import MessageActions from './components/MessageActions';
 import { useNavigate } from 'react-router-dom';
 import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, notifyAuthChanged, gatewayAPI, gatewayKind, normalizeGatewayUrl } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
@@ -37,6 +38,9 @@ const STORE_GROUPS = [
 ];
 const storeGroup = (c) => (c?.opened ? 'opened' : c?.scope === 'cloud' ? 'cloud' : 'org');
 const storeLabel = (c) => (c?.scope === 'cloud' ? c.cloud?.name || c.display_name : c?.display_name || c?.storage_key);
+// Loại kho và mô tả (do Quản trị viên của Tổ chức đặt; phân vùng: tên đề tài) của Kho Tri thức đang làm việc
+const storeScopeLabel = (c) => (c?.scope === 'cloud' ? (c.opened ? 'Phân vùng đã mở' : 'Kho của phân vùng') : c?.scope === 'personal' ? 'Kho riêng của bạn' : 'Kho của Tổ chức');
+const storeDescription = (c) => c?.description || c?.cloud?.description || '';
 
 // Số khung hình FaceID không khớp/không thấy khuôn mặt liên tiếp trước khi tạm dừng quét
 const MAX_FACE_ATTEMPTS = 8;
@@ -351,6 +355,9 @@ export default function App() {
   const [dataFiles, setDataFiles] = useState([]);
   const [dataFilesLoading, setDataFilesLoading] = useState(false);
   const [dataFilesError, setDataFilesError] = useState('');
+  // Tệp đã RAG nhưng không còn trong Kho Dữ liệu (đã xóa / chuyển chỗ) hoặc nạp trực tiếp vào Kho Tri thức
+  const [ragOnlyFiles, setRagOnlyFiles] = useState([]);
+  const [ragListError, setRagListError] = useState('');
   const [dataFilter, setDataFilter] = useState('');
   const [dataNotice, setDataNotice] = useState(null);       // { type: 'success' | 'error' | 'info', text }
   const [dataBusyPath, setDataBusyPath] = useState(null);   // Tệp đang đồng bộ/xóa; '__upload__' khi đang tải lên
@@ -879,12 +886,18 @@ export default function App() {
 
     try {
       const token = localStorage.getItem("tara_token") || "";
-      // Định danh/vai trò do Backend lấy từ JWT nên không gửi user_id, user_role trên URL
-      const streamUrl = `${getGatewayConfig().httpUrl}/api/chat/rag-stream?thread_id=${encodeURIComponent(activeThreadId)}&user_ip=${encodeURIComponent(clientIp)}&domain=${encodeURIComponent(activeDomain)}&aimodel=${encodeURIComponent(selectedModel)}&runtime=${encodeURIComponent(selectedRuntime)}&prompt=${encodeURIComponent(userQuery)}`;
-
-      const response = await fetch(streamUrl, {
+      // Định danh/vai trò/IP do Backend lấy từ JWT. Câu hỏi gửi trong thân JSON (không nằm trên URL) để không bị ghi vào
+      // nhật ký truy cập của máy chủ web và không bị giới hạn độ dài URL.
+      const response = await fetch(`${getGatewayConfig().httpUrl}/api/chat/rag-stream`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          thread_id: activeThreadId,
+          domain: activeDomain,
+          aimodel: selectedModel,
+          runtime: selectedRuntime || null,
+          prompt: userQuery
+        })
       });
 
       if (!response.ok || !response.body) {
@@ -1244,13 +1257,17 @@ export default function App() {
       if (requestId !== dataRequestRef.current) return;  // Người dùng đã chuyển kho trong lúc chờ
       if (res?.status === "SUCCESS" && Array.isArray(res.files)) {
         setDataFiles(res.files);
+        setRagOnlyFiles(Array.isArray(res.rag_only) ? res.rag_only : []);
+        setRagListError(res.rag_error || '');
       } else {
         setDataFiles([]);
+        setRagOnlyFiles([]);
         setDataFilesError(res?.detail || "Không đọc được danh sách tập tin của Kho Dữ liệu.");
       }
     } catch {
       if (requestId === dataRequestRef.current) {
         setDataFiles([]);
+        setRagOnlyFiles([]);
         setDataFilesError("Mất kết nối tới AI Gateway khi đọc Kho Dữ liệu.");
       }
     } finally {
@@ -1305,6 +1322,29 @@ export default function App() {
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch {
       showDataNotice('error', "Mất kết nối tới AI Gateway khi tải tập tin.");
+    }
+  };
+
+  // Gỡ các đoạn tri thức của một tệp đã RAG khỏi Kho Tri thức (tập tin trong Kho Dữ liệu, nếu còn, được giữ nguyên).
+  // item: tệp trong Kho Dữ liệu (dùng rag_id) hoặc mục "chỉ còn trong Kho Tri thức" (dùng id)
+  const removeRagChunks = async (item) => {
+    const ragId = item.rag_id || item.id;
+    if (!ragId) return;
+    const kept = item.rag_id ? "\n\nTập tin trong Kho Dữ liệu được giữ nguyên và trở về trạng thái Chưa RAG." : "";
+    if (!window.confirm(`Gỡ ${item.chunk_count} đoạn tri thức của "${item.name}" khỏi Kho Tri thức?${kept}\n\nKhông hoàn tác được.`)) return;
+    setDataBusyPath(`rag:${ragId}`);
+    try {
+      const res = await iThunderAPI.deleteRagChunks(activeDomain, ragId);
+      if (res?.status === "SUCCESS") {
+        showDataNotice('success', res.detail);
+      } else {
+        showDataNotice('error', res?.detail || "Gỡ đoạn tri thức thất bại.");
+      }
+      await Promise.all([refreshDataFiles(), refreshCollections()]);
+    } catch {
+      showDataNotice('error', "Mất kết nối tới AI Gateway khi gỡ đoạn tri thức.");
+    } finally {
+      setDataBusyPath(null);
     }
   };
 
@@ -1381,11 +1421,13 @@ export default function App() {
     } else {
       dataRequestRef.current += 1;
       setDataFiles([]);
+      setRagOnlyFiles([]);
     }
   });
   useEffect(() => { onDataScopeChange(); }, [viewState, activeDomain, onDataScopeChange]);
 
   const visibleDataFiles = dataFiles.filter(f => f.path.toLowerCase().includes(dataFilter.trim().toLowerCase()));
+  const visibleRagOnly = ragOnlyFiles.filter(f => `${f.path || ''} ${f.name}`.toLowerCase().includes(dataFilter.trim().toLowerCase()));
 
   const selectedColDetails = collections.find(c => c.storage_key === activeDomain) || collections[0] || {
     storage_key: "Personal",
@@ -1400,6 +1442,13 @@ export default function App() {
   const activeCollection = collections.find(c => c.storage_key === activeDomain);
   const activePermission = getStoragePermission(activeCollection, userData.userRole);
   const canManageActive = activePermission === 'manage';
+  const ActiveStoreIcon = activeCollection?.scope === 'cloud' ? FolderKanban : Database;
+
+  // Mở thanh bên và đưa con trỏ tới danh sách chọn Kho Tri thức (từ dòng trạng thái / thông báo chào mừng)
+  const focusStorePicker = () => {
+    setIsLeftSidebarOpen(true);
+    setTimeout(() => document.getElementById('sidebar-store-select')?.focus(), 150);
+  };
 
   // =========================================================================
   // GIAO DIỆN KẾT XUẤT CHÍNH (HTML CORES)
@@ -1787,10 +1836,7 @@ export default function App() {
           <div className="flex flex-col gap-2">
             <span className="text-[10px] font-bold text-fg-subtle uppercase tracking-wider">CHỨC NĂNG</span>
             <div className="flex flex-col gap-1">
-              <button onClick={() => navigate('/knowledge')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
-                <Library size={13} className="text-fg-subtle" />
-                <span>Kho Tri thức</span>
-              </button>
+              {/* Trang Kho Tri thức và Tích hợp MCP mở bằng lệnh nhanh /knowledge, /mcp trong khung Chat */}
               {/* Ẩn với Khách (tài khoản dùng chung); Backend vẫn kiểm tra COMM_ROLES ở từng API */}
               {userData.userRole !== 'visitor' && (
                 <button onClick={() => navigate('/comm')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
@@ -1822,7 +1868,7 @@ export default function App() {
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeDomain === personalStore.storage_key ? 'bg-blue-600/15 border border-blue-500/40 text-fg-strong' : 'hover:bg-hover text-fg-muted'}`}>
                   <span className="flex items-center gap-2 min-w-0">
                     <Database size={13} className={activeDomain === personalStore.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'} />
-                    <span className="truncate">{personalStore.display_name}</span>
+                    <span className="truncate" title={storeDescription(personalStore) || undefined}>{personalStore.display_name}</span>
                   </span>
                   <span className="text-[10px] bg-elevated text-fg-muted px-1.5 py-0.5 rounded-md font-mono shrink-0">{personalStore.file_count} tệp</span>
                 </button>
@@ -1852,8 +1898,8 @@ export default function App() {
                   </select>
                   {activeOther && (
                     <div className="flex items-center gap-1.5 text-[10px] text-fg-muted min-w-0">
-                      <span className="truncate flex-1" title={activeOther.cloud ? `${activeOther.cloud.name} – ${activeOther.cloud.description}` : activeOther.display_name}>
-                        {activeOther.cloud?.description || activeOther.display_name}
+                      <span className="truncate flex-1" title={`${storeLabel(activeOther)}${storeDescription(activeOther) ? ` – ${storeDescription(activeOther)}` : ''}`}>
+                        {storeDescription(activeOther) || activeOther.display_name}
                       </span>
                       {getStoragePermission(activeOther, userData.userRole) === 'read' && (
                         <Eye size={11} className="text-amber-600 dark:text-amber-400 shrink-0" title="Chỉ khai thác" aria-label="Chỉ khai thác" />
@@ -1892,10 +1938,6 @@ export default function App() {
               <button onClick={() => navigate('/identity?tab=me')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
                 <UserCircle size={13} className="text-fg-subtle" />
                 <span>Hồ sơ cá nhân</span>
-              </button>
-              <button onClick={() => navigate('/mcp')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
-                <Cable size={13} className="text-fg-subtle" />
-                <span>Tích hợp MCP</span>
               </button>
             </div>
           </div>
@@ -1953,7 +1995,7 @@ export default function App() {
       {/* min-w-0: cho phép vùng giữa co lại, nội dung dài (tên tệp, văn bản) không đẩy RightSidebar ra ngoài màn hình */}
       <main className="flex-1 min-w-0 h-app flex flex-col justify-between bg-app">
         <header className="h-14 border-b border-line bg-panel px-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {!isLeftSidebarOpen && (
               <button onClick={() => setIsLeftSidebarOpen(true)} className="p-1 text-fg-muted hover:text-fg-strong mr-1"><Menu size={16} /></button>
             )}
@@ -1966,6 +2008,17 @@ export default function App() {
               <span className="truncate">{workspaceOrgName}</span>
               {orgInfo.orgId && <span className="shrink-0 font-mono text-fg-subtle">({orgInfo.orgId})</span>}
             </span>
+            {/* Kho Tri thức đang làm việc (tương đương Project của phiên Chat/Work): bấm để chọn Kho khác ở thanh bên */}
+            {activeCollection && (
+              <button type="button" onClick={focusStorePicker}
+                title={`Kho Tri thức đang dùng: ${activeCollection.display_name}${storeDescription(activeCollection) ? ` – ${storeDescription(activeCollection)}` : ''} (${storeScopeLabel(activeCollection)}). Bấm để chọn Kho khác.`}
+                className="inline-flex items-center gap-1 min-w-0 max-w-[9rem] sm:max-w-[14rem] lg:max-w-[20rem] text-[11px] text-fg-muted hover:text-fg-strong rounded-md px-1 py-0.5 hover:bg-hover transition-all">
+                <span className="text-fg-subtle">·</span>
+                <ActiveStoreIcon size={12} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                <span className="hidden lg:inline shrink-0 text-fg-subtle">Kho Tri thức:</span>
+                <span className="truncate font-semibold text-fg">{activeCollection.display_name}</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -2064,7 +2117,32 @@ export default function App() {
                 <Database size={15} className="text-blue-600 dark:text-blue-400" />
                 <span>Hệ thống Quản lý Phân vùng Kho Tri thức tự động</span>
               </div>
-              <span className="text-[13px] text-fg-muted">Không gian làm việc đã sẵn sàng...</span>
+              {activeCollection ? (<>
+                <div className="text-[13px] text-fg-muted flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <span>Không gian làm việc của <b className="text-fg">{workspaceOrgName}</b> đã sẵn sàng với Kho Tri thức</span>
+                  <span className="inline-flex items-center gap-1 max-w-full px-2 py-0.5 rounded-md bg-blue-600/10 border border-blue-500/30 text-fg-strong font-semibold">
+                    <ActiveStoreIcon size={12} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                    <span className="truncate">{activeCollection.display_name}</span>
+                  </span>
+                  <span className="text-fg-subtle">({storeScopeLabel(activeCollection)})</span>
+                </div>
+                {storeDescription(activeCollection) && (
+                  <span className="text-[13px] text-fg leading-relaxed break-words">{storeDescription(activeCollection)}</span>
+                )}
+                <div className="text-[11px] text-fg-subtle flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                  <span>{activeCollection.file_count} tệp · {activeCollection.chunk_count} đoạn tri thức</span>
+                  <span className={canManageActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                    Quyền của bạn: {canManageActive ? 'Quản trị' : 'Chỉ khai thác'}
+                  </span>
+                  {storeList.length > 1 && (
+                    <button type="button" onClick={focusStorePicker} className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                      Chọn Kho Tri thức khác ({storeList.length})
+                    </button>
+                  )}
+                </div>
+              </>) : (
+                <span className="text-[13px] text-fg-muted">Không gian làm việc đã sẵn sàng...</span>
+              )}
             </div>
 
             {messages.length === 0 ? (
@@ -2079,14 +2157,22 @@ export default function App() {
               <div className="flex flex-col gap-4 mt-2">
                 {messages.map((msg, i) => {
                   const isAsst = msg.role === 'assistant';
+                  // Câu trả lời đang được stream (hoặc chưa có nội dung) thì chưa hiện nút Sao chép / Lưu DOCX
+                  const isComplete = !!msg.content?.trim() && !(isLoading && i === messages.length - 1);
+                  const bodyId = `chat-message-body-${i}`;
                   return (
                     <div key={i} className={`w-full flex gap-3 ${isAsst ? 'justify-start' : 'justify-end'}`}>
                       <div className={`min-w-0 rounded-2xl p-4 text-sm leading-relaxed border shadow-sm ${isAsst ? 'w-full bg-card border-line text-fg' : 'max-w-[85%] bg-blue-600 border-blue-500 text-white'}`}>
                         <div className={`font-bold text-[12px] uppercase mb-1 ${isAsst ? 'text-fg-muted' : 'text-blue-100'}`}>{isAsst ? 'iThunder AI' : 'Bạn'}</div>
                         {/* Bong bóng AI đổi màu chữ theo theme; bong bóng người dùng luôn nền xanh chữ sáng */}
-                        <div className={`prose max-w-none break-words ${isAsst ? 'dark:prose-invert' : 'prose-invert'}`}>
+                        <div id={bodyId} className={`prose max-w-none break-words ${isAsst ? 'dark:prose-invert' : 'prose-invert'}`}>
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
+                        {isComplete && (
+                          <MessageActions content={msg.content} isAsst={isAsst}
+                            prompt={isAsst && messages[i - 1]?.role === 'user' ? messages[i - 1].content : ''}
+                            getHtml={() => document.getElementById(bodyId)?.innerHTML} />
+                        )}
                       </div>
                     </div>
                   );
@@ -2222,7 +2308,7 @@ export default function App() {
             <span className="text-xs font-bold text-fg-strong tracking-wide flex items-center gap-1.5">
               <FolderOpen size={13} className="text-blue-600 dark:text-blue-400" />
               <span>Kho Dữ liệu</span>
-              <span className="text-[10px] font-mono font-normal text-fg-subtle">({dataFiles.length} tệp)</span>
+              <span className="text-[10px] font-mono font-normal text-fg-subtle">({dataFiles.length} tệp{ragOnlyFiles.length ? ` + ${ragOnlyFiles.length} chỉ còn RAG` : ''})</span>
             </span>
             <span className="flex items-center gap-0.5">
               <button onClick={refreshDataFiles} title="Làm mới danh sách tập tin" className="p-1 rounded-md text-fg-muted hover:text-fg-strong hover:bg-hover">
@@ -2248,7 +2334,7 @@ export default function App() {
             </label>
           )}
 
-          {dataFiles.length > 5 && (
+          {dataFiles.length + ragOnlyFiles.length > 5 && (
             <div className="relative">
               <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
               <input value={dataFilter} onChange={(e) => setDataFilter(e.target.value)} placeholder="Lọc theo tên tệp, thư mục..."
@@ -2266,14 +2352,14 @@ export default function App() {
             {dataFilesError ? (
               <div className="text-[11px] text-red-600 dark:text-red-400 py-2">{dataFilesError}</div>
             ) : visibleDataFiles.length === 0 ? (
-              <div className="text-[11px] text-fg-subtle italic py-4 text-center">
+              <div className={`text-[11px] text-fg-subtle italic text-center ${ragOnlyFiles.length ? 'py-2' : 'py-4'}`}>
                 {dataFilesLoading ? 'Đang tải danh sách tập tin...'
                   : dataFiles.length ? 'Không có tập tin khớp bộ lọc.'
                   : canManageActive ? 'Kho chưa có tập tin. Bấm nút tải lên để thêm.' : 'Kho chưa có tập tin.'}
               </div>
             ) : visibleDataFiles.map((file) => {
               const st = SYNC_STATE[file.sync_state] || SYNC_STATE.not_synced;
-              const busy = dataBusyPath === file.path;
+              const busy = dataBusyPath === file.path || (file.rag_id && dataBusyPath === `rag:${file.rag_id}`);
               return (
                 <div key={file.path} className={`rounded-lg border px-2 py-1.5 transition-all ${viewer?.path === file.path ? 'border-blue-500/40 bg-active' : 'border-transparent hover:bg-hover'}`}>
                   <button onClick={() => openDataFile(file)} title={`Xem nội dung: ${file.path}`} className="w-full text-left flex items-start gap-1.5">
@@ -2296,8 +2382,12 @@ export default function App() {
                         {canManageActive && (
                           <button onClick={() => syncOneDataFile(file)} title="Đồng bộ tập tin vào Kho Tri thức" className="p-1 rounded text-fg-muted hover:text-blue-600 dark:hover:text-blue-400 hover:bg-elevated"><RefreshCw size={12} /></button>
                         )}
+                        {canManageActive && file.rag_id && (
+                          <button onClick={() => removeRagChunks(file)} title={`Gỡ ${file.chunk_count} đoạn tri thức khỏi Kho Tri thức (giữ tập tin trong Kho Dữ liệu)`} aria-label={`Gỡ đoạn tri thức của ${file.name}`}
+                            className="p-1 rounded text-fg-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-elevated"><Eraser size={12} /></button>
+                        )}
                         {canManageActive && (
-                          <button onClick={() => deleteOneDataFile(file)} title="Xóa (chuyển vào thùng rác)" className="p-1 rounded text-fg-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-elevated"><Trash2 size={12} /></button>
+                          <button onClick={() => deleteOneDataFile(file)} title="Xóa tập tin (chuyển vào thùng rác) và gỡ đoạn tri thức liên quan" className="p-1 rounded text-fg-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-elevated"><Trash2 size={12} /></button>
                         )}
                       </>)}
                     </span>
@@ -2305,6 +2395,51 @@ export default function App() {
                 </div>
               );
             })}
+
+            {/* TỆP CHỈ CÒN TRONG KHO TRI THỨC: đoạn tri thức vẫn nằm trong PGVector (và vẫn được dùng khi hỏi đáp) dù tập tin
+                đã bị xóa / chuyển khỏi Kho Dữ liệu, hoặc được nạp trực tiếp từ AI Chat/Work, Trao đổi trực tuyến */}
+            {!dataFilesError && ragListError && (
+              <div className="text-[10px] text-amber-700 dark:text-amber-400 py-1">{ragListError}</div>
+            )}
+            {!dataFilesError && ragOnlyFiles.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-dashed border-line flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1"
+                  title="Các tệp đã RAG: đoạn tri thức vẫn được lưu trong Kho Tri thức (PGVector) và vẫn được dùng khi hỏi đáp, dù tập tin không có trong Kho Dữ liệu.">
+                  <Database size={11} /> Chỉ còn trong Kho Tri thức ({ragOnlyFiles.length})
+                </span>
+                {visibleRagOnly.length === 0 && (
+                  <div className="text-[11px] text-fg-subtle italic py-1 text-center">Không có tệp đã RAG khớp bộ lọc.</div>
+                )}
+                {visibleRagOnly.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-transparent hover:bg-hover px-2 py-1.5">
+                    <div className="flex items-start gap-1.5" title={item.path || item.name}>
+                      <FileX size={12} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-medium text-fg truncate">{item.name}</span>
+                        <span className="block text-[10px] text-fg-subtle truncate">
+                          {item.origin === 'deleted'
+                            ? (item.path && item.path !== item.name ? `${item.path} · ` : '') + 'Tập tin không còn trong Kho Dữ liệu'
+                            : 'Nạp trực tiếp, không qua Kho Dữ liệu'}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 pl-[18px]">
+                      <span className="text-[10px] flex items-center gap-1 text-amber-700 dark:text-amber-400"
+                        title={item.last_sync ? `RAG lần cuối: ${formatDateTime(item.last_sync)}` : undefined}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        Đã RAG · {item.chunk_count} đoạn · {item.size_display}
+                      </span>
+                      {dataBusyPath === `rag:${item.id}` ? (
+                        <Loader2 size={12} className="animate-spin text-fg-muted" />
+                      ) : canManageActive && (
+                        <button onClick={() => removeRagChunks(item)} title={`Gỡ ${item.chunk_count} đoạn tri thức của tệp này khỏi Kho Tri thức`} aria-label={`Gỡ đoạn tri thức của ${item.name}`}
+                          className="p-1 rounded text-fg-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-elevated"><Eraser size={12} /></button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

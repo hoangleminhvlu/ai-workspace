@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FolderGit, Database, FileText, HardDrive, RefreshCw, Trash2,
-  ArrowLeft, Search, CheckCircle, AlertCircle, FolderKanban
+  ArrowLeft, Search, CheckCircle, AlertCircle, FolderKanban, Pencil, Save, X
 } from 'lucide-react';
 import iThunderAPI, { getStoragePermission } from '../services/api';
 import useLatestCallback from '../hooks/useLatestCallback';
@@ -31,11 +31,19 @@ export default function KnowledgeManager() {
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState({ type: '', text: '' });
 
+  // Đổi tên gọi / mô tả kho cấp Tổ chức: chỉ Quản trị viên (Backend trả store_info_editable và kiểm tra lại khi lưu)
+  const [canEditInfo, setCanEditInfo] = useState(false);
+  const [infoDraft, setInfoDraft] = useState(null);          // { display_name, description } khi đang sửa
+  const [savingInfo, setSavingInfo] = useState(false);
+
   const sessionUser = readSessionUser();
   const canManage = getStoragePermission(activeCollection, sessionUser.userRole) === 'manage';
 
   // Nạp danh mục kho một lần khi mở trang (loadOnMount ổn định nhờ useLatestCallback)
-  const loadOnMount = useLatestCallback(() => { fetchCollections(); });
+  const loadOnMount = useLatestCallback(() => {
+    fetchCollections();
+    iThunderAPI.getCurrentUser().then(me => setCanEditInfo(me?.store_info_editable === true)).catch(() => {});
+  });
   useEffect(() => { loadOnMount(); }, [loadOnMount]);
 
   const fetchCollections = async (keepStorageKey = null) => {
@@ -72,7 +80,25 @@ export default function KnowledgeManager() {
     }
   };
 
+  const handleSaveInfo = async (e) => {
+    e.preventDefault();
+    if (!activeCollection || !infoDraft || savingInfo) return;
+    const name = infoDraft.display_name.trim();
+    if (!name) { showMsg('error', 'Tên gọi của Kho không được để trống.'); return; }
+    setSavingInfo(true);
+    try {
+      const res = await iThunderAPI.updateStoreInfo(activeCollection.storage_key, name, infoDraft.description.trim());
+      if (res.status === "SUCCESS") {
+        showMsg('success', res.detail);
+        setInfoDraft(null);
+        await fetchCollections(activeCollection.storage_key);
+      } else { showMsg('error', res.detail || 'Không cập nhật được tên gọi / mô tả của Kho.'); }
+    } catch { showMsg('error', 'Lỗi kết nối AI Gateway khi cập nhật tên gọi / mô tả của Kho.'); }
+    finally { setSavingInfo(false); }
+  };
+
   const handleCollectionChange = (col) => {
+    setInfoDraft(null);
     setActiveCollection(col);
     fetchFiles(col.collection_name);
   };
@@ -140,7 +166,7 @@ export default function KnowledgeManager() {
                 )}
                 <button
                   onClick={() => handleCollectionChange(col)}
-                  title={col.cloud ? `${col.storage_key} · ${col.cloud.description}` : undefined}
+                  title={col.description ? `${col.storage_key} · ${col.description}` : col.storage_key}
                   className={`w-full text-left px-3 py-3 rounded-xl border text-xs font-medium transition-all flex items-center justify-between ${activeCollection?.storage_key === col.storage_key ? 'bg-blue-600/15 border-blue-500/50 text-fg-strong shadow-md' : 'bg-transparent border-transparent text-fg-muted hover:bg-hover'}`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
@@ -157,9 +183,53 @@ export default function KnowledgeManager() {
 
         <main className="flex-1 bg-app p-6 flex flex-col gap-4 overflow-y-auto">
           {activeCollection && (
-            <div className="w-full bg-panel border border-line rounded-2xl p-4 flex justify-between items-center shadow-sm">
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <h2 className="text-sm font-bold text-fg-strong flex items-center gap-1.5"><FolderGit size={15} className="text-blue-600 dark:text-blue-400" /> Phân vùng: {activeCollection.display_name}</h2>
+            <div className="w-full bg-panel border border-line rounded-2xl p-4 flex justify-between items-center gap-4 shadow-sm">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <h2 className="text-sm font-bold text-fg-strong flex items-center gap-1.5">
+                  <FolderGit size={15} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                  <span className="truncate">Phân vùng: {activeCollection.display_name}</span>
+                  {canEditInfo && activeCollection.scope !== 'cloud' && !infoDraft && (
+                    <button type="button" title="Đổi tên gọi / mô tả của Kho (lưu trên OpenLDAP của Tổ chức)"
+                      onClick={() => setInfoDraft({ display_name: activeCollection.display_name || '', description: activeCollection.description || '' })}
+                      className="shrink-0 ml-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-line bg-elevated text-fg-muted hover:text-fg-strong hover:bg-hover flex items-center gap-1 transition-all">
+                      <Pencil size={11} /> Đổi tên / mô tả
+                    </button>
+                  )}
+                </h2>
+                {infoDraft ? (
+                  <form onSubmit={handleSaveInfo} className="my-1.5 flex flex-col gap-2 max-w-xl">
+                    <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
+                      Tên gọi của Kho Dữ liệu / Kho Tri thức
+                      <input type="text" autoFocus required maxLength={60} value={infoDraft.display_name}
+                        onChange={e => setInfoDraft(d => ({ ...d, display_name: e.target.value }))}
+                        className="bg-elevated border border-line text-xs rounded-lg px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
+                      Mô tả (hiển thị trong AI Chat/Work và giúp Trợ lý AI hiểu phạm vi của Kho)
+                      <textarea rows={2} maxLength={255} value={infoDraft.description}
+                        onChange={e => setInfoDraft(d => ({ ...d, description: e.target.value }))}
+                        className="bg-elevated border border-line text-xs rounded-lg px-3 py-2 text-fg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button type="submit" disabled={savingInfo}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1 disabled:opacity-50">
+                        <Save size={11} /> {savingInfo ? 'Đang lưu...' : 'Lưu'}
+                      </button>
+                      <button type="button" onClick={() => setInfoDraft(null)} disabled={savingInfo}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-line bg-elevated text-fg-muted hover:bg-hover flex items-center gap-1">
+                        <X size={11} /> Hủy
+                      </button>
+                      <span className="text-[10px] text-fg-subtle">Khóa kho <code className="font-mono">{activeCollection.storage_key}</code>, dữ liệu và quyền truy cập không đổi.</span>
+                    </div>
+                  </form>
+                ) : (
+                  <span className="text-[12px] text-fg-muted break-words">
+                    {activeCollection.description || (canEditInfo && activeCollection.scope !== 'cloud' ? 'Chưa có mô tả.' : '')}
+                  </span>
+                )}
+                {canEditInfo && activeCollection.scope === 'cloud' && (
+                  <span className="text-[11px] text-fg-subtle">Tên và mô tả của phân vùng: sửa tại Quản trị Định danh › Phân vùng.</span>
+                )}
                 <span className="text-[11px] text-fg-subtle truncate">Mã Table: <code className="text-amber-600 dark:text-amber-500 font-mono text-[10px] bg-elevated px-1 py-0.5 rounded ml-1">{activeCollection.collection_name}</code></span>
                 <span className={`text-[11px] font-semibold ${canManage ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                   Quyền của bạn: {canManage ? 'Quản trị (xem, tải dữ liệu, đồng bộ RAG)' : 'Chỉ khai thác'}
