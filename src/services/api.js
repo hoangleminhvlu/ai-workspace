@@ -483,13 +483,17 @@ export const iThunderAPI = {
     }
   },
 
-  syncDirectory: async (domain) => {
+  // RAG theo yêu cầu: toàn bộ Kho Dữ liệu hoặc một thư mục con (subdir). Mặc định chỉ nạp tệp chưa RAG / đã sửa;
+  // force: nạp lại cả tệp đã đồng bộ. Kho lớn được nạp theo từng đợt: res.remaining > 0 thì gọi lại để nạp tiếp.
+  syncDirectory: async (domain, { subdir = "", force = false } = {}) => {
     try {
       const token = localStorage.getItem("tara_token") || "";
 
       // MẤU CHỐT: Sử dụng URLSearchParams để ép định dạng gửi đi thành application/x-www-form-urlencoded
       const formData = new URLSearchParams();
       formData.append("domain", domain);
+      if (subdir) formData.append("subdir", subdir);
+      if (force) formData.append("force", "true");
 
       const response = await fetch(`${gatewayUrl()}/api/rag/sync-directory`, {
         method: "POST",
@@ -511,9 +515,11 @@ export const iThunderAPI = {
   // --- QUẢN TRỊ KHO DỮ LIỆU (TẬP TIN TRÊN MÁY CHỦ BACKEND) ---
 
   // Danh sách tập tin của kho kèm trạng thái đồng bộ vào Kho Tri thức (synced | outdated | not_synced)
-  listDataFiles: async (domain) => {
+  // Mỗi lần gọi trả MỘT CẤP thư mục: folders (thư mục con, chỉ tên) và files (tệp nằm ngay trong subdir; '' = thư mục gốc).
+  // Người dùng bấm vào một thư mục con thì gọi lại với subdir = folder.path.
+  listDataFiles: async (domain, subdir = "") => {
     try {
-      const response = await fetch(`${gatewayUrl()}/api/data/files?domain=${encodeURIComponent(domain)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/files?domain=${encodeURIComponent(domain)}&subdir=${encodeURIComponent(subdir)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });

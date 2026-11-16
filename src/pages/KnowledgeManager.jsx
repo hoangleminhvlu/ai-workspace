@@ -35,6 +35,7 @@ export default function KnowledgeManager() {
   const [canEditInfo, setCanEditInfo] = useState(false);
   const [infoDraft, setInfoDraft] = useState(null);          // { display_name, description } khi đang sửa
   const [savingInfo, setSavingInfo] = useState(false);
+  const [serverNode, setServerNode] = useState('');           // LOCATION của AI Platform (/api/org/info)
 
   const sessionUser = readSessionUser();
   const canManage = getStoragePermission(activeCollection, sessionUser.userRole) === 'manage';
@@ -43,6 +44,7 @@ export default function KnowledgeManager() {
   const loadOnMount = useLatestCallback(() => {
     fetchCollections();
     iThunderAPI.getCurrentUser().then(me => setCanEditInfo(me?.store_info_editable === true)).catch(() => {});
+    iThunderAPI.getOrgInfo().then(org => setServerNode(org?.status === 'SUCCESS' ? org.location || '' : '')).catch(() => {});
   });
   useEffect(() => { loadOnMount(); }, [loadOnMount]);
 
@@ -149,7 +151,11 @@ export default function KnowledgeManager() {
           </button>
           <span className="text-sm font-bold uppercase tracking-wider text-fg">Quản trị Phân vùng Kho Tri thức</span>
         </div>
-        <div className="text-xs font-mono bg-elevated text-fg-muted px-3 py-1 rounded-md border border-line">Node: FITLAB-03</div>
+        {/* Máy chủ AI Platform của Tổ chức (LOCATION trong .env, đọc qua /api/org/info): không viết cứng tên máy */}
+        {serverNode && (
+          <div className="hidden sm:block text-xs font-mono bg-elevated text-fg-muted px-3 py-1 rounded-md border border-line truncate max-w-[16rem]"
+            title={`Máy chủ AI Platform: ${serverNode}`}>Node: {serverNode}</div>
+        )}
       </header>
 
       <div className="flex-1 flex overflow-hidden">
@@ -173,7 +179,7 @@ export default function KnowledgeManager() {
                     <Icon size={14} className={`shrink-0 ${activeCollection?.storage_key === col.storage_key ? 'text-blue-600 dark:text-blue-400' : 'text-fg-subtle'}`} />
                     <span className="truncate">{col.display_name}</span>
                   </div>
-                  <span className="text-[10px] bg-elevated px-1.5 py-0.5 rounded font-mono text-fg-subtle shrink-0">{col.file_count} f</span>
+                  <span className="text-[10px] bg-elevated px-1.5 py-0.5 rounded font-mono text-fg-subtle shrink-0">{col.file_count} tệp</span>
                 </button>
               </React.Fragment>
             );
