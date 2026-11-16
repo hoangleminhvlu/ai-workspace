@@ -4,15 +4,21 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Cpu, HardDrive, Database, Activity, Server,
   Layers, FileText, Clock, AlertTriangle
 } from 'lucide-react';
 import iThunderAPI, { systemAPI } from '../services/api';
+import PlatformStatusPanel from './system/PlatformStatusPanel';
 
 const METRICS_INTERVAL_MS = 5000;
 const LOGS_INTERVAL_MS = 15000;
+
+const TABS = [
+  { id: 'ai', label: 'Máy chủ AI', Icon: Cpu },
+  { id: 'platform', label: 'AI Platform', Icon: Server },
+];
 
 const formatUptime = (seconds) => {
   if (!seconds && seconds !== 0) return '—';
@@ -109,6 +115,9 @@ function ModelsCard({ models, ollama }) {
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') === 'platform' ? 'platform' : 'ai';
+  const setTab = (id) => setSearchParams(id === 'ai' ? {} : { tab: id }, { replace: true });
   const [summaryData, setSummaryData] = useState({ totalFiles: 0, totalChunks: 0, totalCollections: 0 });
   // metrics: null (đang tải) | { runtimes, config_error, timestamp }; metricsError: thông điệp lỗi gần nhất
   const [metrics, setMetrics] = useState(null);
@@ -185,12 +194,11 @@ export default function AnalyticsDashboard() {
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button onClick={() => navigate('/')} aria-label="Quay lại AI Workspace" className="p-1.5 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong transition-all shrink-0"><ArrowLeft size={16} /></button>
           <span className="text-sm font-bold uppercase tracking-wider text-fg truncate">
-            <span className="sm:hidden">Giám sát AI Server</span>
-            <span className="hidden sm:inline">Giám sát Hạ tầng & Hiệu năng AI Server</span>
+            Giám sát Hệ thống
           </span>
         </div>
         {/* Điện thoại: chỉ còn biểu tượng + chữ ngắn để không bẻ dòng thanh tiêu đề */}
-        {online ? (
+        {tab === 'ai' && (online ? (
           <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium font-mono bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 px-2.5 py-1 rounded-md" title="Mọi Máy chủ AI và nguồn giám sát đều phản hồi">
             <Activity size={12} className="animate-pulse" /><span className="hidden sm:inline">Hệ thống trực tuyến</span><span className="sm:hidden">Ổn định</span>
           </div>
@@ -200,10 +208,22 @@ export default function AnalyticsDashboard() {
             <span className="hidden sm:inline">{metrics || metricsError ? 'Có nguồn giám sát lỗi' : 'Đang kết nối...'}</span>
             <span className="sm:hidden">{metrics || metricsError ? 'Có lỗi' : '...'}</span>
           </div>
-        )}
+        ))}
       </header>
 
+      {/* Hai nhóm giám sát: Máy chủ AI (Ollama, GPU, nhật ký) và các dịch vụ nền của AI Platform; ?tab=platform mở thẳng tab sau */}
+      <nav className="border-b border-line bg-panel px-3 sm:px-6 flex gap-1 shrink-0 overflow-x-auto" role="tablist">
+        {TABS.map(t => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors ${tab === t.id
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-fg-muted hover:text-fg-strong'}`}>
+            <t.Icon size={13} /> {t.label}
+          </button>
+        ))}
+      </nav>
+
       <main className="flex-1 p-3 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-y-auto custom-scrollbar">
+        {tab === 'platform' ? <PlatformStatusPanel /> : (<>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400"><Layers size={20}/></div>
@@ -264,6 +284,7 @@ export default function AnalyticsDashboard() {
             </div>
           </div>
         )}
+        </>)}
       </main>
     </div>
   );

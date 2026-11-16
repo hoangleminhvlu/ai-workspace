@@ -1017,7 +1017,11 @@ export const systemAPI = {
   getMetrics: () => systemGet("/metrics", "truy vấn tài nguyên AI Server"),
 
   // { file, lines: [{ level, text }] } - chỉ quản trị viên
-  getLogs: (lines = 100) => systemGet(`/logs?lines=${encodeURIComponent(lines)}`, "truy vấn nhật ký hệ thống")
+  getLogs: (lines = 100) => systemGet(`/logs?lines=${encodeURIComponent(lines)}`, "truy vấn nhật ký hệ thống"),
+
+  // Trạng thái AI Platform: { platform, services: [{ id, name, role, state, target, latency_ms, detail, items? }],
+  // warnings: [{ level, message }], summary }. refresh=true: bỏ qua bộ đệm của Backend (nút "Kiểm tra lại")
+  getStatus: (refresh = false) => systemGet(`/status${refresh ? "?refresh=true" : ""}`, "kiểm tra trạng thái AI Platform")
 };
 
 /**
