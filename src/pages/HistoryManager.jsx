@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '../components/Markdown';
 import { ArrowLeft, Bot, Database, FolderKanban, History, MessageSquare, Play, RefreshCw, Trash2, User } from 'lucide-react';
 import iThunderAPI, { requestOpenThread } from '../services/api';
 import { Button, Notice, controlCls } from './identity/shared';
@@ -170,7 +170,7 @@ export default function HistoryManager() {
                         </span>
                         <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed break-words ${assistant ? 'bg-elevated text-fg' : 'bg-blue-600 text-white'}`}>
                           {assistant
-                            ? <div className="prose prose-sm dark:prose-invert max-w-none break-words"><ReactMarkdown>{String(m.content ?? '')}</ReactMarkdown></div>
+                            ? <div className="prose prose-sm dark:prose-invert max-w-none break-words"><Markdown>{String(m.content ?? '')}</Markdown></div>
                             : <span className="whitespace-pre-wrap">{String(m.content ?? '')}</span>}
                           {m.timestamp && <div className={`text-[9px] mt-1 font-mono ${assistant ? 'text-fg-subtle' : 'text-white/70'}`}>{formatDateTime(m.timestamp)}</div>}
                         </div>

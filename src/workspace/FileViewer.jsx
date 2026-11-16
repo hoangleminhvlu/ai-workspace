@@ -3,7 +3,7 @@
 import {
   Loader2, FileText, RefreshCw, Trash2, Download, X
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '../components/Markdown';
 import { SYNC_STATE, formatDateTime } from './constants';
 
 export default function FileViewer({ canManageActive, closeViewer, dataBusyPath, deleteOneDataFile, downloadDataFile, selectedColDetails, syncOneDataFile, viewer }) {
@@ -46,7 +46,7 @@ export default function FileViewer({ canManageActive, closeViewer, dataBusyPath,
         ) : viewer.blobUrl ? (
           <iframe src={viewer.blobUrl} title={viewer.name} className="w-full h-[68vh] rounded-lg border border-line bg-white" />
         ) : viewer.ext === '.md' ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none break-words"><ReactMarkdown>{viewer.content || ''}</ReactMarkdown></div>
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words"><Markdown>{viewer.content || ''}</Markdown></div>
         ) : (
           <pre className="text-xs leading-relaxed whitespace-pre-wrap break-words font-mono text-fg">{viewer.content || '(Tập tin không có nội dung văn bản)'}</pre>
         )}

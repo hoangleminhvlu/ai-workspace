@@ -205,8 +205,9 @@ export default function App() {
   };
   const modelLabel = (model) => {
     const known = window.TARA_CONFIG?.MODEL_LIST?.[model.name];
-    const info = [model.parameter_size, model.loaded ? '● sẵn sàng' : null].filter(Boolean).join(' · ');
-    return known ? `${known}${model.loaded ? ' · ● sẵn sàng' : ''}` : `${model.name}${info ? ` (${info})` : ''}`;
+    const cloud = model.location === 'onclouds' ? '☁ On-Clouds' : null;
+    const info = [model.parameter_size, cloud, model.loaded ? '● sẵn sàng' : null].filter(Boolean).join(' · ');
+    return known ? `${known}${cloud ? ` · ${cloud}` : ''}${model.loaded ? ' · ● sẵn sàng' : ''}` : `${model.name}${info ? ` (${info})` : ''}`;
   };
   const modelGroups = chatModels.reduce((groups, model) => {
     const group = groups.find(g => g.runtime === model.runtime);
@@ -601,10 +602,19 @@ export default function App() {
     setIsLoading(true);
     closeViewer();  // Gửi câu hỏi: quay lại khung hội thoại để thấy câu trả lời
 
-    setMessages(prev => [...prev, { role: "user", content: userQuery }]);
-    setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+    // at: thời điểm gửi / nhận; meta: phiên trả lời của Trợ lý AI (mô hình, On-Premises / On-Clouds, thời gian, token).
+    // Lệnh nhanh (/) do máy trạm xử lý nên câu trả lời là tin nhắn hệ thống, không có meta.
+    const sentAt = new Date().toISOString();
+    const isCommand = userQuery.startsWith('/');
+    const chosenModel = chatModels.find(m => m.name === selectedModel && (!selectedRuntime || m.runtime === selectedRuntime));
+    setMessages(prev => [...prev,
+      { role: "user", content: userQuery, at: sentAt },
+      isCommand
+        ? { role: "assistant", content: "", at: sentAt, system: true }
+        : { role: "assistant", content: "", at: sentAt, meta: { pending: true, model: selectedModel, runtime: chosenModel?.runtime || selectedRuntime,
+            runtime_name: chosenModel?.runtime_name, location: chosenModel?.location, started_at: sentAt } }]);
 
-    if (userQuery.startsWith('/')) {
+    if (isCommand) {
       try {
         await runSlashCommand(userQuery);
       } catch (err) {
@@ -642,9 +652,12 @@ export default function App() {
         if (response.status === 422) refreshChatModels();
         setMessages(prev => {
           const updated = [...prev];
+          const last = updated[updated.length - 1];
           updated[updated.length - 1] = {
+            ...last,
             role: "assistant",
-            content: `⛔ **${response.status === 422 ? "Không thể dùng mô hình AI" : "Không thể khai thác Kho tri thức"}:** ${describeError(errData, response.status)}`
+            content: `⛔ **${response.status === 422 ? "Không thể dùng mô hình AI" : "Không thể khai thác Kho tri thức"}:** ${describeError(errData, response.status)}`,
+            meta: { ...last?.meta, pending: false, status: "error", finished_at: new Date().toISOString() }
           };
           return updated;
         });
@@ -662,7 +675,17 @@ export default function App() {
         const snapshot = accumulatedText;
         setMessages(prev => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: snapshot };
+          updated[updated.length - 1] = { ...updated[updated.length - 1], role: "assistant", content: snapshot };
+          return updated;
+        });
+      };
+
+      // Sự kiện meta của Backend: "start" (mô hình, Máy chủ AI, On-Premises / On-Clouds) và "end" (thời gian, token)
+      const mergeMeta = (info) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, meta: { ...last?.meta, ...info, pending: info.event !== "end" } };
           return updated;
         });
       };
@@ -677,6 +700,7 @@ export default function App() {
           try {
             // Trích xuất chính xác chuỗi JSON nằm sau cụm "data: "
             const parsed = JSON.parse(cleanLine.substring(6).trim());
+            if (parsed.meta) { mergeMeta(parsed.meta); return; }
             const tokenContent = parsed.choices?.[0]?.delta?.content;
             if (tokenContent) appendToken(tokenContent);
           } catch {
@@ -709,14 +733,25 @@ export default function App() {
     } catch {
       setMessages(prev => {
         const updated = [...prev];
+        const last = updated[updated.length - 1];
         updated[updated.length - 1] = {
+          ...last,
           role: "assistant",
-          content: `❌ **Lỗi kết nối mạng:** Không thể nhận dữ liệu phát trực tuyến từ cổng AI Platform.`
+          content: `❌ **Lỗi kết nối mạng:** Không thể nhận dữ liệu phát trực tuyến từ cổng AI Platform.`,
+          meta: { ...last?.meta, pending: false, status: "error", finished_at: new Date().toISOString() }
         };
         return updated;
       });
     } finally {
       // TIẾN TRÌNH KẾT THÚC (THÀNH CÔNG HAY LỖI) -> GIẢI PHÓNG CỜ KHÓA
+      // Luồng đóng mà chưa có sự kiện "end" (Backend cũ, mất kết nối): tự đóng phiên trả lời theo đồng hồ máy trạm
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (!last?.meta?.pending) return prev;
+        const finishedAt = new Date().toISOString();
+        return [...prev.slice(0, -1), { ...last, meta: { ...last.meta, pending: false, finished_at: last.meta.finished_at || finishedAt,
+          duration_ms: last.meta.duration_ms ?? (Date.parse(finishedAt) - Date.parse(last.meta.started_at || finishedAt)) } }];
+      });
       setIsLoading(false);
     }
   };
@@ -739,14 +774,14 @@ export default function App() {
     // Gộp cả 2 tin nhắn vào một lượt cập nhật state để tối ưu hiệu năng render
     setMessages(prev => [
       ...prev,
-      { role: "user", content: "📎 Đính kèm tệp tin tài liệu: `" + file.name + "`" },
-      { role: "assistant", content: "⏳ Đang lưu tệp vào Kho Dữ liệu và nạp vào Kho Tri thức `" + targetDomain + "`..." }
+      { role: "user", content: "📎 Đính kèm tệp tin tài liệu: `" + file.name + "`", at: new Date().toISOString() },
+      { role: "assistant", content: "⏳ Đang lưu tệp vào Kho Dữ liệu và nạp vào Kho Tri thức `" + targetDomain + "`...", at: new Date().toISOString(), system: true }
     ]);
 
     const setUploadResult = (content) => {
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content };
+        updated[updated.length - 1] = { ...updated[updated.length - 1], role: "assistant", content };
         return updated;
       });
     };
@@ -810,7 +845,7 @@ export default function App() {
   const replaceLastAssistant = (content) => {
     setMessages(prev => {
       const updated = [...prev];
-      updated[updated.length - 1] = { role: "assistant", content };
+      updated[updated.length - 1] = { ...updated[updated.length - 1], role: "assistant", content };
       return updated;
     });
   };
@@ -856,7 +891,11 @@ export default function App() {
       replaceLastAssistant("⚠️ **[Không thể khôi phục]:** " + (data?.detail || "Phiên hội thoại không tồn tại hoặc không thuộc về bạn."));
       return;
     }
-    const restored = data.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content ?? "") }));
+    const restored = data.map(m => ({
+      role: m.role === "assistant" ? "assistant" : "user", content: String(m.content ?? ""),
+      at: m.timestamp ? (/[zZ]|[+-]\d\d:?\d\d$/.test(m.timestamp) ? m.timestamp : m.timestamp + "Z") : undefined,   // Backend lưu giờ UTC
+      meta: m.metadata && typeof m.metadata === "object" ? { ...m.metadata, pending: false } : undefined
+    }));
     setActiveThreadId(thread.thread_id);
     setMessages([
       ...restored,

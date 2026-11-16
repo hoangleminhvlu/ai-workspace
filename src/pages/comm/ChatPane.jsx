@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '../../components/Markdown';
 import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Phone, PhoneMissed, Reply, RotateCw, Send, Trash2, Users, Video, X } from 'lucide-react';
 import { Avatar } from './shared';
 import { KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './utils';
@@ -14,9 +14,6 @@ import { KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } 
 // tin nhắn ghi lại cuộc gọi (kind = 'call').
 
 const TYPING_THROTTLE_MS = 3000;
-const markdownComponents = {
-  a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-};
 
 const Attachment = ({ att, onDownload, onRemove }) => (
   <span className="inline-flex items-center gap-1.5 max-w-full pl-2 pr-1 py-1 rounded-lg border border-line bg-elevated text-[11px] text-fg">
@@ -79,7 +76,7 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
             <>
               {msg.content && (
                 <div className={`prose prose-sm max-w-none break-words ${mine ? 'prose-invert' : 'dark:prose-invert'} [&>*:first-child]:mt-0 [&>*:last-child]:mb-0`}>
-                  <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                  <Markdown>{msg.content}</Markdown>
                 </div>
               )}
               {msg.attachments?.length > 0 && (
@@ -281,7 +278,7 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
               <span className="text-[10px] font-semibold text-fg-muted px-1 mb-0.5 flex items-center gap-1"><Bot size={11} /> Trợ lý AI · {aiStream.model}</span>
               <div className="rounded-2xl px-3 py-2 text-sm bg-card border border-line break-words max-w-full">
                 {aiStream.text ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"><ReactMarkdown components={markdownComponents}>{aiStream.text}</ReactMarkdown></div>
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"><Markdown>{aiStream.text}</Markdown></div>
                 ) : <span className="inline-flex items-center gap-2 text-xs text-fg-subtle"><Loader2 size={12} className="animate-spin" /> {aiStream.status || 'Đang suy nghĩ...'}</span>}
               </div>
             </div>
