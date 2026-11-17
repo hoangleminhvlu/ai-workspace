@@ -8,7 +8,7 @@ Cùng một mã nguồn React/Vite (`src/`) được đóng gói thành:
 | Android | Capacitor 8 | `android/` | Có (JDK 21 + Android SDK 36) |
 | iOS | Capacitor 8 | `ios/` | Không: chỉ đồng bộ mã nguồn, build phải dùng macOS + Xcode |
 
-Mã định danh ứng dụng: Windows `vn.istech.aiworkspace`; Mobile (Android/iOS, thử nghiệm) `vn.aitech.aiworkspace`.
+Mã định danh ứng dụng (Windows, Android, iOS; thử nghiệm): `vn.aitech.aiworkspace`.
 Phiên bản lấy theo `package.json` (hiện `6.11.16`): Tauri đọc trực tiếp; Android versionCode / iOS build ghi `61116`
 (cập nhật tay trong `android/app/build.gradle` và `ios/App/App.xcodeproj/project.pbxproj` khi đổi phiên bản).
 
@@ -31,7 +31,8 @@ npm run native:doctor     # kiểm tra môi trường
 npm run win:dev           # Vite dev (hot reload) + bản debug .exe mở trên Windows
 npm run win:build         # bộ cài NSIS: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/
 npm run android:build     # APK debug: android/app/build/outputs/apk/debug/app-debug.apk
-npm run android:install   # cài APK lên điện thoại qua Gỡ lỗi không dây (adb pair / adb connect)
+npm run android:emulator  # bật trình giả lập Android (KVM, hiện qua WSLg), cài và mở APK debug
+npm run android:install   # cài APK lên thiết bị đang kết nối: trình giả lập, hoặc điện thoại qua Gỡ lỗi không dây
 npm run android:release   # APK/AAB release (cần cấu hình khóa ký trước)
 npm run ios:sync          # đồng bộ dist/ vào ios/ (sau đó build trên macOS)
 ```
@@ -52,8 +53,13 @@ Cần cài bằng sudo cho bản Windows: `clang lld llvm nsis`.
 
 - WSL đang ở chế độ mạng NAT: Windows gọi được `localhost:5173` của WSL, nhưng điện thoại không gọi được. Vì vậy
   Android dùng APK đã build (không dùng live reload). `adb connect` từ WSL tới điện thoại vẫn hoạt động.
-- Trình giả lập Android trong WSL cần quyền `/dev/kvm`: `sudo usermod -aG kvm $USER`, sau đó khởi động lại WSL.
-  Dùng điện thoại thật thì đơn giản hơn.
+- Trình giả lập Android: máy ảo `AIWorkspace_API36` (khung Pixel 7, màn hình hạ còn 720×1600 @320dpi; Android 16 /
+  API 36 AOSP `default` x86_64, không có Google Play Services; RAM 2 GB), tăng tốc bằng KVM (người dùng `local` thuộc
+  nhóm `kvm`; nếu nhóm chưa có hiệu lực, script tự chạy qua `sg kvm`). WSLg không có GPU thật (chỉ llvmpipe) nên đồ họa
+  giả lập bằng CPU (`swiftshader_indirect`, đổi bằng `EMU_GPU=`), hiệu ứng chuyển cảnh được tắt. Khởi động mất 2 đến 3
+  phút; vài phút đầu máy ảo rất chậm, có thể hiện "System UI isn't responding" (chọn Wait) và lần dò AI Gateway đầu
+  tiên quá 8 giây (bấm "Thử lại"). Gỡ lỗi WebView:
+  `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>` rồi mở `chrome://inspect` trên Windows.
 - Biểu tượng hiện là biểu tượng mặc định. Khi có ảnh vuông 1024×1024: `npx tauri icon <ảnh>` (Windows) và
   `npx @capacitor/assets generate` (Android/iOS).
 - iOS: cần máy Mac có Xcode 26+, hoặc GitHub Actions `macos` runner, cùng tài khoản Apple Developer để ký.

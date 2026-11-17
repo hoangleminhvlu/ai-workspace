@@ -2,7 +2,7 @@
 export JAVA_HOME="${JAVA_HOME:-$HOME/.local/opt/jdk-21}"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
-export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 # Ubuntu có thể chỉ cài llvm-rc / lld-link trong /usr/lib/llvm-<N>/bin: dùng bản mới nhất
 if ! command -v llvm-rc >/dev/null 2>&1; then

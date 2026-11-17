@@ -31,6 +31,14 @@ export const isClientApp = () => {
   return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
 };
 
+// Trang do vỏ ứng dụng native phục vụ (Capacitor Android: http://localhost; Tauri Windows: http://tauri.localhost):
+// địa chỉ đang mở chỉ chứa giao diện, không phải AI Gateway nên không dò /api trên đó. Có cổng (vd. localhost:5173 khi
+// npm run win:dev) là Vite dev server, vẫn chuyển /api về Backend như trên trình duyệt.
+const isNativeShell = () => !window.location.port
+  && (window.location.hostname === "tauri.localhost" || Boolean(window.Capacitor?.isNativePlatform?.()));
+// Chính địa chỉ đang mở có thể là AI Gateway (Web sau nginx, dev proxy của Vite)
+const pageMayBeGateway = () => /^https?:$/.test(window.location.protocol) && !isNativeShell();
+
 // Máy trong mạng nội bộ: loopback, IP riêng (RFC 1918, link-local, IPv6 ULA), tên máy một nhãn, .local/.lan/.internal...
 const PRIVATE_HOST = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|169\.254(\.\d{1,3}){2}|\[::1\]|\[f[cd][0-9a-f:]*\]|\[fe80:[0-9a-f:]*\]|[a-z0-9-]+|.+\.(local|lan|internal|intranet|corp|home\.arpa))$/i;
 const LOOPBACK_HOST = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|\[::1\])$/i;
@@ -71,7 +79,7 @@ export const getGatewayConfig = () => {
   const fixed = fixedGateway();
   let httpUrl = fixed;
   if (!httpUrl && isClientApp()) httpUrl = candidateGateway || readStorage(GATEWAY_KEY);
-  if (!httpUrl && /^https?:$/.test(window.location.protocol)) httpUrl = window.location.origin;
+  if (!httpUrl && pageMayBeGateway()) httpUrl = window.location.origin;
   httpUrl = trimUrl(httpUrl);
   const wsUrl = trimUrl((fixed && config.WS_GATEWAY_URL) || httpUrl.replace(/^http/, "ws"));
   return { httpUrl, wsUrl };
@@ -104,7 +112,7 @@ export const gatewayAPI = {
   // Thứ tự tự dò khi chưa ghi nhớ: chính địa chỉ đang mở (dev proxy / AI Gateway phục vụ luôn giao diện) rồi DEFAULT_GATEWAY_URL
   discoveryOrder: () => {
     const list = [];
-    if (/^https?:$/.test(window.location.protocol)) list.push(window.location.origin);
+    if (pageMayBeGateway()) list.push(window.location.origin);
     const fallback = normalizeGatewayUrl(window.TARA_CONFIG?.DEFAULT_GATEWAY_URL || "").url;
     if (fallback && !list.includes(fallback)) list.push(fallback);
     return list;

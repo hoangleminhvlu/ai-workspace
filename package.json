@@ -15,6 +15,7 @@
     "android:build": "bash scripts/native/android-build.sh",
     "android:release": "bash scripts/native/android-build.sh release",
     "android:install": "bash scripts/native/android-install.sh",
+    "android:emulator": "bash scripts/native/android-emulator.sh",
     "ios:sync": "npm run build && npx cap sync ios"
   },
   "dependencies": {
