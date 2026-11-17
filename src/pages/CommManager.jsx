@@ -158,7 +158,11 @@ export default function CommManager() {
         if (activeRef.current === convId) loadDetail(convId);
         break;
       case 'ai_start':
-        setAiStreams(s => ({ ...s, [convId]: { stream_id: frame.stream_id, text: '', model: frame.model } }));
+        setAiStreams(s => ({ ...s, [convId]: { stream_id: frame.stream_id, text: '', model: frame.model, started_at: new Date().toISOString() } }));
+        break;
+      case 'ai_meta':   // Máy chủ AI, On-Premises / On-Clouds của lượt trả lời (gửi khi Trợ lý AI bắt đầu soạn câu trả lời)
+        setAiStreams(s => (s[convId]?.stream_id === frame.stream_id
+          ? { ...s, [convId]: { ...s[convId], model: frame.model || s[convId].model, location: frame.location, started_at: frame.started_at || s[convId].started_at } } : s));
         break;
       case 'ai_status':
         setAiStreams(s => (s[convId]?.stream_id === frame.stream_id ? { ...s, [convId]: { ...s[convId], status: frame.text } } : s));
