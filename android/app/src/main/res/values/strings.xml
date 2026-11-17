@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">iThunder AI Workspace</string>
+    <string name="title_activity_main">iThunder AI Workspace</string>
+    <string name="package_name">vn.aitech.aiworkspace</string>
+    <string name="custom_url_scheme">vn.aitech.aiworkspace</string>
+</resources>

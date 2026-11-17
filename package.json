@@ -1,19 +1,28 @@
 {
   "name": "ai-workspace",
   "private": true,
-  "version": "6.09.27",
+  "version": "6.11.16",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "native:doctor": "bash scripts/native/doctor.sh",
+    "win:dev": "bash scripts/native/win-dev.sh",
+    "win:build": "bash scripts/native/win-build.sh",
+    "android:build": "bash scripts/native/android-build.sh",
+    "android:release": "bash scripts/native/android-build.sh release",
+    "android:install": "bash scripts/native/android-install.sh",
+    "android:emulator": "bash scripts/native/android-emulator.sh",
+    "ios:sync": "npm run build && npx cap sync ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.4.3",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.6.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.0.0",
     "lucide-react": "^0.440.0",
