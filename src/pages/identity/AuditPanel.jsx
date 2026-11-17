@@ -6,7 +6,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { identityAPI } from '../../services/api';
-import { ACTION_LABELS, Button, Notice, formatDateTime, controlCls, inputCls } from './shared';
+import { Button, Notice, controlCls } from './shared';
+import { ACTION_LABELS, formatDateTime } from './utils';
 
 const PAGE = 50;
 

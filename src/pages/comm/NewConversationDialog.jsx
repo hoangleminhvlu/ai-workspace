@@ -39,7 +39,13 @@ export default function NewConversationDialog({ info, onClose, onCreated }) {
     });
   }, [tab, units]);
 
-  const switchTab = (id) => { setTab(id); setNotice(null); if (id === 'direct') setPeople(p => p.slice(0, 1)); };
+  // Hội thoại với Trợ lý AI: tệp gửi cho AI được nạp vào kho này nên mặc định là kho Personal (riêng tư), không phải Public
+  const switchTab = (id) => {
+    setTab(id);
+    setNotice(null);
+    if (id === 'direct') setPeople(p => p.slice(0, 1));
+    if (info.storages.includes('Personal') && info.storages.includes('Public')) setDomain(id === 'assistant' ? 'Personal' : 'Public');
+  };
 
   const payload = () => {
     const member_ids = people.map(p => p.user_id);

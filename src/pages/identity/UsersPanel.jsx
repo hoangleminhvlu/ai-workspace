@@ -3,7 +3,7 @@
  * Tập tin tạo lập môi trường quản trị định danh người dùng.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, ScanFace, Search, UserPlus } from 'lucide-react';
 import { identityAPI } from '../../services/api';
 import { Button, Field, Modal, Notice, RoleChip, RolePicker, StatusBadge, controlCls, inputCls } from './shared';
@@ -96,6 +96,10 @@ export default function UsersPanel({ catalog, permissions, actorId, scopeUnits =
 
   useEffect(() => { setPage(1); }, [debouncedQuery, role, status, sort, unit]);
 
+  // Sang trang / đổi bộ lọc: đưa bảng về dòng đầu
+  const tableScrollRef = useRef(null);
+  useEffect(() => { tableScrollRef.current?.scrollTo({ top: 0 }); }, [page, debouncedQuery, role, status, sort, unit]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -113,8 +117,10 @@ export default function UsersPanel({ catalog, permissions, actorId, scopeUnits =
   const canWrite = permissions.includes('identity.users.write');
 
   return (
-    <div className="flex flex-col gap-4 min-h-0">
-      <div className="flex flex-wrap items-center gap-2">
+    // Bảng chiếm phần chiều cao còn lại của trang và tự cuộn bên trong (tiêu đề cột và thanh phân trang luôn hiển thị).
+    // Cửa sổ quá thấp: bảng giữ chiều cao tối thiểu, khi đó cả trang (main của IdentityManager) cuộn.
+    <div className="flex-1 flex flex-col gap-4 min-h-0">
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Họ tên, mã nhân sự, email, uid..." aria-label="Tìm người dùng" className={`${inputCls} pl-8`} />
@@ -154,11 +160,11 @@ export default function UsersPanel({ catalog, permissions, actorId, scopeUnits =
 
       <Notice notice={notice} onClose={() => setNotice(null)} />
 
-      <div className="bg-panel border border-line rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="flex-1 min-h-[18rem] flex flex-col bg-panel border border-line rounded-2xl overflow-hidden">
+        <div ref={tableScrollRef} className="flex-1 min-h-0 overflow-auto custom-scrollbar">
           <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="border-b border-line text-fg-muted bg-elevated">
+            <thead className="sticky top-0 z-10 bg-elevated shadow-[0_1px_0_var(--color-line)]">
+              <tr className="text-fg-muted">
                 <th className="py-2.5 px-4 font-medium">Họ và tên</th>
                 <th className="py-2.5 px-4 font-medium">Mã nhân sự</th>
                 <th className="py-2.5 px-4 font-medium">Email</th>
@@ -191,8 +197,11 @@ export default function UsersPanel({ catalog, permissions, actorId, scopeUnits =
             </tbody>
           </table>
         </div>
-        <footer className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-line text-[11px] text-fg-muted">
-          <span>{data.total} người dùng</span>
+        <footer className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-t border-line text-[11px] text-fg-muted">
+          <span>
+            {data.total} người dùng
+            {data.items.length > 0 && data.total > data.items.length && ` · đang xem ${(page - 1) * PAGE_SIZE + 1}–${(page - 1) * PAGE_SIZE + data.items.length}`}
+          </span>
           <div className="flex items-center gap-2">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} aria-label="Trang trước" className="p-1 rounded hover:bg-hover disabled:opacity-30"><ChevronLeft size={14} /></button>
             <span>Trang {page}/{totalPages}</span>

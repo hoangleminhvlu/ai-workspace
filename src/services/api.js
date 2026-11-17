@@ -4,19 +4,134 @@
  * Version 6.09.27
  */
 
-// Tự động nhận diện cấu hình tĩnh nhúng từ window.TARA_CONFIG của index.html
-export const getGatewayConfig = () => {
-  const config = window.TARA_CONFIG || {
-    API_GATEWAY_URL: "https://aigate.is-tech.vn",
-    WS_GATEWAY_URL: "wss://aigate.is-tech.vn"
-  };
-  return {
-    httpUrl: config.API_GATEWAY_URL.replace(/\/$/, ""),
-    wsUrl: config.WS_GATEWAY_URL.replace(/\/$/, "")
-  };
+// ── AI Gateway mà AI Workspace kết nối ───────────────────────────────────────────────────────────────────────────
+// 1. Web (https://<tên miền của Tổ chức>): AI Gateway là CHÍNH TÊN MIỀN đang mở AI Workspace — nginx của mỗi Tổ chức
+//    chuyển /api và /ws về Backend của Tổ chức đó, nên một bản build dùng chung cho mọi Tổ chức.
+// 2. Ứng dụng máy trạm (AI Workspace mở tại http://localhost trên máy Desktop, ứng dụng Desktop Tauri/Electron, Mobile
+//    Capacitor): không có tên miền của Tổ chức, người dùng chọn AI Gateway ngay trên trang Đăng nhập — On-Premise (http,
+//    IP/tên máy nội bộ) hoặc On-Clouds (https qua Internet). Địa chỉ chỉ được GHI NHỚ khi xác thực PassCode thành công
+//    (gatewayAPI.commit); trước đó là "AI Gateway ứng viên" trong bộ nhớ.
+// 3. API_GATEWAY_URL trong window.TARA_CONFIG (index.html): cố định một AI Gateway, không cho chọn.
+const GATEWAY_KEY = "tara_gateway";
+const GATEWAY_HISTORY_KEY = "tara_gateways";
+const MAX_GATEWAY_HISTORY = 8;
+const PROBE_TIMEOUT_MS = 8000;
+let candidateGateway = "";
+const knownOrgs = new Map();   // AI Gateway -> { org_id, org_name } đọc từ /api/org/info, lưu kèm khi ghi nhớ
+
+const trimUrl = (url) => String(url || "").trim().replace(/\/+$/, "");
+const readStorage = (key) => { try { return localStorage.getItem(key) || ""; } catch { return ""; } };
+const fixedGateway = () => trimUrl(window.TARA_CONFIG?.API_GATEWAY_URL);
+
+// AI Workspace chạy như ứng dụng máy trạm (không do AI Gateway của Tổ chức phục vụ) => cần chọn AI Gateway
+export const isClientApp = () => {
+  if (fixedGateway()) return false;
+  if (!/^https?:$/.test(window.location.protocol)) return true;   // tauri://, capacitor://, file://
+  const host = window.location.hostname.toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
 };
 
-const { httpUrl } = getGatewayConfig();
+// Máy trong mạng nội bộ: loopback, IP riêng (RFC 1918, link-local, IPv6 ULA), tên máy một nhãn, .local/.lan/.internal...
+const PRIVATE_HOST = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|169\.254(\.\d{1,3}){2}|\[::1\]|\[f[cd][0-9a-f:]*\]|\[fe80:[0-9a-f:]*\]|[a-z0-9-]+|.+\.(local|lan|internal|intranet|corp|home\.arpa))$/i;
+const LOOPBACK_HOST = /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|\[::1\])$/i;
+export const isPrivateHost = (host) => PRIVATE_HOST.test(String(host || ""));
+
+// 'onpremise' (http/https trong mạng nội bộ) | 'onclouds' (https qua Internet)
+export const gatewayKind = (url) => {
+  try { return isPrivateHost(new URL(url).hostname) ? "onpremise" : "onclouds"; } catch { return ""; }
+};
+
+/**
+ * Chuẩn hóa địa chỉ AI Gateway người dùng nhập: thiếu giao thức => http cho máy nội bộ, https cho Internet.
+ * PassCode không được đi qua Internet dưới dạng http; trang https không gọi được http (Mixed Content) trừ localhost.
+ * Trả { url } hoặc { error }.
+ */
+export const normalizeGatewayUrl = (input) => {
+  let text = String(input || "").trim();
+  if (!text) return { error: "Hãy nhập địa chỉ AI Gateway của Tổ chức." };
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+    const host = text.startsWith("[") ? text.slice(0, text.indexOf("]") + 1) : text.split(/[/:?#]/)[0];
+    text = `${isPrivateHost(host) ? "http" : "https"}://${text}`;
+  }
+  let url;
+  try { url = new URL(text); } catch { return { error: "Địa chỉ AI Gateway không hợp lệ." }; }
+  if (!/^https?:$/.test(url.protocol)) return { error: "AI Gateway chỉ dùng http:// (mạng nội bộ) hoặc https://." };
+  if (url.username || url.password) return { error: "Địa chỉ AI Gateway không được chứa tên đăng nhập hay mật khẩu." };
+  if (url.protocol === "http:" && !isPrivateHost(url.hostname)) {
+    return { error: "AI Gateway trên Internet (On-Clouds) phải dùng https:// để bảo vệ PassCode. http:// chỉ dùng cho AI Gateway trong mạng nội bộ (On-Premise)." };
+  }
+  if (url.protocol === "http:" && window.location.protocol === "https:" && !LOOPBACK_HOST.test(url.hostname)) {
+    return { error: "Ứng dụng đang chạy trên https nên không gọi được AI Gateway http:// (Mixed Content). Hãy dùng https cho AI Gateway này." };
+  }
+  return { url: trimUrl(url.origin + url.pathname) };
+};
+
+export const getGatewayConfig = () => {
+  const config = window.TARA_CONFIG || {};
+  const fixed = fixedGateway();
+  let httpUrl = fixed;
+  if (!httpUrl && isClientApp()) httpUrl = candidateGateway || readStorage(GATEWAY_KEY);
+  if (!httpUrl && /^https?:$/.test(window.location.protocol)) httpUrl = window.location.origin;
+  httpUrl = trimUrl(httpUrl);
+  const wsUrl = trimUrl((fixed && config.WS_GATEWAY_URL) || httpUrl.replace(/^http/, "ws"));
+  return { httpUrl, wsUrl };
+};
+
+const gatewayUrl = () => getGatewayConfig().httpUrl;
+
+const readHistory = () => {
+  try {
+    const list = JSON.parse(readStorage(GATEWAY_HISTORY_KEY) || "[]");
+    return Array.isArray(list) ? list.filter(g => g && typeof g.url === "string" && normalizeGatewayUrl(g.url).url === g.url) : [];
+  } catch { return []; }
+};
+
+// Chọn / ghi nhớ AI Gateway của ứng dụng máy trạm (trang Đăng nhập)
+export const gatewayAPI = {
+  isClientApp,
+  // Địa chỉ đang dùng; '' khi ứng dụng máy trạm chưa chọn AI Gateway
+  current: () => gatewayUrl(),
+  saved: () => readStorage(GATEWAY_KEY),
+  // Danh sách gợi ý: đã dùng gần đây + KNOWN_GATEWAYS khai báo trong index.html
+  suggestions: () => {
+    const items = readHistory();
+    for (const url of window.TARA_CONFIG?.KNOWN_GATEWAYS || []) {
+      const normalized = normalizeGatewayUrl(url).url;
+      if (normalized && !items.some(g => g.url === normalized)) items.push({ url: normalized, org_id: "", org_name: "" });
+    }
+    return items;
+  },
+  // Thứ tự tự dò khi chưa ghi nhớ: chính địa chỉ đang mở (dev proxy / AI Gateway phục vụ luôn giao diện) rồi DEFAULT_GATEWAY_URL
+  discoveryOrder: () => {
+    const list = [];
+    if (/^https?:$/.test(window.location.protocol)) list.push(window.location.origin);
+    const fallback = normalizeGatewayUrl(window.TARA_CONFIG?.DEFAULT_GATEWAY_URL || "").url;
+    if (fallback && !list.includes(fallback)) list.push(fallback);
+    return list;
+  },
+  // AI Gateway ứng viên trên trang Đăng nhập (chưa ghi nhớ)
+  setCandidate: (url) => { candidateGateway = trimUrl(url); },
+  // Xác thực PassCode thành công: ghi nhớ AI Gateway để lần sau mở ứng dụng vào thẳng
+  commit: (url = gatewayUrl()) => {
+    const value = trimUrl(url);
+    if (!isClientApp() || !value) return;
+    const org = knownOrgs.get(value) || {};
+    const history = [{ url: value, org_id: org.org_id || "", org_name: org.org_name || "", last_used: new Date().toISOString() },
+      ...readHistory().filter(g => g.url !== value)].slice(0, MAX_GATEWAY_HISTORY);
+    try {
+      localStorage.setItem(GATEWAY_KEY, value);
+      localStorage.setItem(GATEWAY_HISTORY_KEY, JSON.stringify(history));
+    } catch { /* trình duyệt chặn lưu trữ: lần sau chọn lại AI Gateway */ }
+    candidateGateway = "";
+  },
+  forget: (url) => {
+    const value = trimUrl(url);
+    try {
+      localStorage.setItem(GATEWAY_HISTORY_KEY, JSON.stringify(readHistory().filter(g => g.url !== value)));
+      if (readStorage(GATEWAY_KEY) === value) localStorage.removeItem(GATEWAY_KEY);
+    } catch { /* bỏ qua */ }
+  },
+};
 
 /**
  * Hàm phụ trợ đính kèm mã định danh JWT vào Header bảo mật
@@ -33,9 +148,13 @@ const getAuthHeaders = () => {
  * Phiên làm việc hết hạn / token không hợp lệ (HTTP 401): xóa phiên cục bộ và đưa người dùng về màn hình đăng nhập.
  * App.jsx lắng nghe sự kiện "tara:session-expired" để chuyển phân cảnh LOGIN mà không cần tải lại trang.
  */
+// Đăng nhập / đăng xuất trong tab này: CommProvider (kết nối /ws/comm dùng chung, cuộc gọi) đọc lại mã truy cập
+export const notifyAuthChanged = () => window.dispatchEvent(new Event("tara:auth"));
+
 export const handleUnauthorized = (message = "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại!") => {
   localStorage.removeItem("tara_token");
   localStorage.removeItem("tara_user");
+  notifyAuthChanged();
   if (window.location.pathname !== "/") {
     try { sessionStorage.setItem("tara_logout_reason", message); } catch { /* bỏ qua */ }
     window.location.assign("/");
@@ -74,7 +193,7 @@ export const iThunderAPI = {
   // --- CHUẨN HÓA LẠI ĐỊNH DẠNG JSON BODY ĐỂ TRÁNH LỖI 422 ---
   getCode: async (email) => {
     try {
-      const response = await fetch(`${httpUrl}/api/auth/get-code`, {
+      const response = await fetch(`${gatewayUrl()}/api/auth/get-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json" // Chuyển đổi định dạng nhận dữ liệu JSON
@@ -92,7 +211,7 @@ export const iThunderAPI = {
   // GỬI YÊU CẦU ĐĂNG KÝ THÀNH VIÊN MỚI (CHUẨN HÓA CẤU TRÚC JSON BODY) ---
   registerUser: async (email, fullName) => {
     try {
-      const response = await fetch(`${httpUrl}/api/auth/register`, {
+      const response = await fetch(`${gatewayUrl()}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json" // Chuyển sang JSON để triệt tiêu lỗi 422
@@ -120,7 +239,7 @@ export const iThunderAPI = {
   // Người dùng đồng ý => Backend gửi liên kết xác nhận trở thành Khách (visitor) tới Email đăng ký của tài khoản.
   requestJoin: async (joinToken) => {
     try {
-      const response = await fetch(`${httpUrl}/api/auth/join-request`, {
+      const response = await fetch(`${gatewayUrl()}/api/auth/join-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ join_token: joinToken })
@@ -139,11 +258,39 @@ export const iThunderAPI = {
   // --- QUẢN LÝ PHIÊN LÀM VIỆC VÀ LỊCH SỬ CHAT ---
   // Định danh người dùng do Backend lấy từ JWT; không cần (và không nên) gửi user_id
 
+  // Tổ chức sở hữu AI Gateway này (công khai, không cần đăng nhập): { org_id, org_name, org_url, location, ... }
+  // Trang Đăng nhập dùng để người dùng biết đang vào AI Workspace của Tổ chức nào. Lỗi mạng => { status: "FAIL" }
+  // Ứng dụng máy trạm dùng luôn API này để kiểm tra AI Gateway vừa nhập (url) trước khi cho nhập PassCode.
+  getOrgInfo: async (url = gatewayUrl()) => {
+    const base = trimUrl(url);
+    if (!base) return { status: "FAIL", detail: "Chưa chọn AI Gateway." };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${base}/api/org/info`, { method: "GET", signal: controller.signal });
+      if (!response.ok) return { status: "FAIL", detail: `Địa chỉ này chưa phải AI Gateway của iThunder AI OS (HTTP ${response.status}).` };
+      const data = await response.json().catch(() => null);
+      if (data?.status !== "SUCCESS" || !data.org_id) return { status: "FAIL", detail: "Địa chỉ này chưa phải AI Gateway của iThunder AI OS." };
+      knownOrgs.set(base, { org_id: data.org_id, org_name: data.org_name || data.org_id });
+      return data;
+    } catch (error) {
+      console.warn("[iThunder API] Không đọc được thông tin Tổ chức của AI Gateway:", error);
+      return {
+        status: "FAIL",
+        detail: error?.name === "AbortError"
+          ? `AI Gateway không phản hồi sau ${PROBE_TIMEOUT_MS / 1000} giây.`
+          : "Không kết nối được AI Gateway (sai địa chỉ, mất mạng, chứng chỉ https không hợp lệ, hoặc AI Gateway chưa cho phép ứng dụng máy trạm)."
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
   // Thông tin phiên + chính sách theo vai trò do Backend khai báo trong config.py
-  // (vd. chat_history_enabled, chat_history_roles) để giao diện không phải tự khai báo lại
+  // (vd. chat_history_enabled, chat_history_roles, org_id, org_name) để giao diện không phải tự khai báo lại
   getCurrentUser: async () => {
     try {
-      const response = await fetch(`${httpUrl}/api/auth/me`, {
+      const response = await fetch(`${gatewayUrl()}/api/auth/me`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -157,7 +304,7 @@ export const iThunderAPI = {
   // Lấy danh sách các luồng hội thoại cũ của user theo domain phân vùng
   getChatThreads: async (domain = "Personal") => {
     try {
-      const response = await fetch(`${httpUrl}/api/chat/threads?domain=${encodeURIComponent(domain)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/chat/threads?domain=${encodeURIComponent(domain)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -168,10 +315,25 @@ export const iThunderAPI = {
     }
   },
 
+  // Trang Lịch sử Làm việc: phiên hội thoại của chính người dùng trên mọi Kho Tri thức (lọc theo tên phiên, kho)
+  getAllThreads: async (q = "", domain = "", limit = 200) => {
+    try {
+      const params = new URLSearchParams({ q, domain, limit: String(limit) });
+      const response = await fetch(`${gatewayUrl()}/api/chat/threads/all?${params}`, {
+        method: "GET",
+        headers: getAuthHeaders()
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi truy vấn lịch sử làm việc:", error);
+      throw error;
+    }
+  },
+
   // Trích xuất chi tiết nội dung tin nhắn cũ bên trong một Thread
   getChatHistory: async (threadId) => {
     try {
-      const response = await fetch(`${httpUrl}/api/chat/history?thread_id=${encodeURIComponent(threadId)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/chat/history?thread_id=${encodeURIComponent(threadId)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -185,7 +347,7 @@ export const iThunderAPI = {
   // Xóa vĩnh viễn một luồng chat và các tin nhắn liên quan ( PostgreSQL Transaction )
   deleteThread: async (threadId) => {
     try {
-      const response = await fetch(`${httpUrl}/api/chat/delete-thread?thread_id=${encodeURIComponent(threadId)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/chat/delete-thread?thread_id=${encodeURIComponent(threadId)}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -199,7 +361,7 @@ export const iThunderAPI = {
   // Đăng xuất an toàn: Backend xác định chính chủ phiên qua JWT để hủy PassTime trên OpenLDAP
   logout: async () => {
     try {
-      const response = await fetch(`${httpUrl}/api/logout`, {
+      const response = await fetch(`${gatewayUrl()}/api/logout`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -222,7 +384,7 @@ export const iThunderAPI = {
     try {
       const opened = getOpenedClouds();
       const qs = opened.length ? `?open=${encodeURIComponent(opened.join(","))}` : "";
-      const response = await fetch(`${httpUrl}/api/rag/collections${qs}`, {
+      const response = await fetch(`${gatewayUrl()}/api/rag/collections${qs}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -246,7 +408,7 @@ export const iThunderAPI = {
     if (q) query.set("q", q);
     if (includePrivate) query.set("include_private", "true");
     const qs = query.toString();
-    const response = await fetch(`${httpUrl}/api/rag/public-clouds${qs ? `?${qs}` : ""}`, {
+    const response = await fetch(`${gatewayUrl()}/api/rag/public-clouds${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders()
     });
@@ -256,7 +418,7 @@ export const iThunderAPI = {
   // Trích xuất danh sách file độc bản trong một phân vùng cụ thể
   getCollectionFiles: async (collectionName) => {
     try {
-      const response = await fetch(`${httpUrl}/api/rag/collection/files?collection_name=${encodeURIComponent(collectionName)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/rag/collection/files?collection_name=${encodeURIComponent(collectionName)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -275,7 +437,7 @@ export const iThunderAPI = {
       formData.append("domain", domain);
 
       const token = localStorage.getItem("tara_token") || "";
-      const response = await fetch(`${httpUrl}/api/rag/upload`, {
+      const response = await fetch(`${gatewayUrl()}/api/rag/upload`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -293,7 +455,7 @@ export const iThunderAPI = {
   // Xóa vĩnh viễn tệp tin và giải phóng các đoạn vector đặc trưng
   deleteFile: async (collectionName, fileName) => {
     try {
-      const response = await fetch(`${httpUrl}/api/rag/collection/delete-file?collection_name=${encodeURIComponent(collectionName)}&file_name=${encodeURIComponent(fileName)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/rag/collection/delete-file?collection_name=${encodeURIComponent(collectionName)}&file_name=${encodeURIComponent(fileName)}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -305,15 +467,35 @@ export const iThunderAPI = {
   },
 
   // Gửi lệnh đồng bộ thư mục vật lý tại máy chủ Backend
-  syncDirectory: async (domain) => {
+  // Quản trị viên của Tổ chức đổi tên gọi / mô tả một kho cấp Tổ chức (lưu trên OpenLDAP; khóa kho và quyền không đổi).
+  // Kho của phân vùng (Dự án, Thực tập, Hội đồng) sửa tại Quản trị Định danh > Phân vùng.
+  updateStoreInfo: async (storageKey, displayName, description = "") => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/rag/store-info`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ storage_key: storageKey, display_name: displayName, description })
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi cập nhật tên gọi / mô tả Kho Tri thức:", error);
+      throw error;
+    }
+  },
+
+  // RAG theo yêu cầu: toàn bộ Kho Dữ liệu hoặc một thư mục con (subdir). Mặc định chỉ nạp tệp chưa RAG / đã sửa;
+  // force: nạp lại cả tệp đã đồng bộ. Kho lớn được nạp theo từng đợt: res.remaining > 0 thì gọi lại để nạp tiếp.
+  syncDirectory: async (domain, { subdir = "", force = false } = {}) => {
     try {
       const token = localStorage.getItem("tara_token") || "";
 
       // MẤU CHỐT: Sử dụng URLSearchParams để ép định dạng gửi đi thành application/x-www-form-urlencoded
       const formData = new URLSearchParams();
       formData.append("domain", domain);
+      if (subdir) formData.append("subdir", subdir);
+      if (force) formData.append("force", "true");
 
-      const response = await fetch(`${httpUrl}/api/rag/sync-directory`, {
+      const response = await fetch(`${gatewayUrl()}/api/rag/sync-directory`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -333,9 +515,11 @@ export const iThunderAPI = {
   // --- QUẢN TRỊ KHO DỮ LIỆU (TẬP TIN TRÊN MÁY CHỦ BACKEND) ---
 
   // Danh sách tập tin của kho kèm trạng thái đồng bộ vào Kho Tri thức (synced | outdated | not_synced)
-  listDataFiles: async (domain) => {
+  // Mỗi lần gọi trả MỘT CẤP thư mục: folders (thư mục con, chỉ tên) và files (tệp nằm ngay trong subdir; '' = thư mục gốc).
+  // Người dùng bấm vào một thư mục con thì gọi lại với subdir = folder.path.
+  listDataFiles: async (domain, subdir = "") => {
     try {
-      const response = await fetch(`${httpUrl}/api/data/files?domain=${encodeURIComponent(domain)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/files?domain=${encodeURIComponent(domain)}&subdir=${encodeURIComponent(subdir)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -349,7 +533,7 @@ export const iThunderAPI = {
   // Nội dung văn bản của tập tin (PDF/DOCX được bóc tách văn bản tại Backend)
   getDataFileText: async (domain, path) => {
     try {
-      const response = await fetch(`${httpUrl}/api/data/file/text?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/file/text?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -363,7 +547,7 @@ export const iThunderAPI = {
   // Tệp gốc dạng Blob (hiển thị PDF trong khung xem hoặc tải về máy)
   getDataFileBlob: async (domain, path) => {
     try {
-      const response = await fetch(`${httpUrl}/api/data/file/raw?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/file/raw?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
         method: "GET",
         headers: { "Authorization": `Bearer ${localStorage.getItem("tara_token") || ""}` }
       });
@@ -371,6 +555,25 @@ export const iThunderAPI = {
       return { status: "SUCCESS", blob: await response.blob() };
     } catch (error) {
       console.error("[iThunder API] Lỗi tải tập tin gốc:", error);
+      throw error;
+    }
+  },
+
+  // Lưu một câu trả lời của khung AI Chat/Work thành tập tin DOCX (AI Gateway dựng từ Markdown); tên tập tin do Gateway đặt
+  exportChatDocx: async (content, title = "") => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/chat/export-docx`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ content, title })
+      });
+      if (!response.ok) return await parseResponse(response);
+      const named = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get("Content-Disposition") || "");
+      let filename = "iThunder-AI.docx";
+      try { if (named) filename = decodeURIComponent(named[1]); } catch { /* giữ tên mặc định */ }
+      return { status: "SUCCESS", blob: await response.blob(), filename };
+    } catch (error) {
+      console.error("[iThunder API] Lỗi tạo tập tin DOCX:", error);
       throw error;
     }
   },
@@ -384,7 +587,7 @@ export const iThunderAPI = {
       formData.append("subdir", subdir);
       formData.append("overwrite", overwrite ? "true" : "false");
       formData.append("sync", sync ? "true" : "false");
-      const response = await fetch(`${httpUrl}/api/data/upload`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/upload`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${localStorage.getItem("tara_token") || ""}` },
         body: formData
@@ -397,9 +600,24 @@ export const iThunderAPI = {
   },
 
   // Xóa tập tin: Backend chuyển vào thùng rác .Trash của Kho và gỡ tri thức liên quan
+  // Gỡ các đoạn tri thức (chunks) của một tệp đã RAG khỏi Kho Tri thức, không đụng tới tập tin trong Kho Dữ liệu.
+  // ragId: "rag_id" của tệp trong Kho Dữ liệu hoặc "id" của mục rag_only do listDataFiles trả về
+  deleteRagChunks: async (domain, ragId) => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/data/rag-chunks?domain=${encodeURIComponent(domain)}&id=${encodeURIComponent(ragId)}`, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+      return await parseResponse(response);
+    } catch (error) {
+      console.error("[iThunder API] Lỗi gỡ đoạn tri thức khỏi Kho Tri thức:", error);
+      throw error;
+    }
+  },
+
   deleteDataFile: async (domain, path) => {
     try {
-      const response = await fetch(`${httpUrl}/api/data/file?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/file?domain=${encodeURIComponent(domain)}&path=${encodeURIComponent(path)}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -416,7 +634,7 @@ export const iThunderAPI = {
       const formData = new URLSearchParams();
       formData.append("domain", domain);
       formData.append("path", path);
-      const response = await fetch(`${httpUrl}/api/data/sync-file`, {
+      const response = await fetch(`${gatewayUrl()}/api/data/sync-file`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("tara_token") || ""}`,
@@ -436,7 +654,7 @@ export const iThunderAPI = {
   //   runtimes, default_model, default_runtime } - gửi lại aimodel + runtime cho /api/chat/rag-stream
   getModels: async () => {
     try {
-      const response = await fetch(`${httpUrl}/api/models`, {
+      const response = await fetch(`${gatewayUrl()}/api/models`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -450,7 +668,7 @@ export const iThunderAPI = {
   // Thống kê nhanh số lượng tài liệu phục vụ kết xuất Sidebar
   getSidebarSummary: async () => {
     try {
-      const response = await fetch(`${httpUrl}/api/sidebar/rag-summary`, {
+      const response = await fetch(`${gatewayUrl()}/api/sidebar/rag-summary`, {
         method: "GET",
         headers: getAuthHeaders()
       });
@@ -469,7 +687,7 @@ export const iThunderAPI = {
  */
 const identityGet = async (path, label) => {
   try {
-    const response = await fetch(`${httpUrl}/api/identity${path}`, {
+    const response = await fetch(`${gatewayUrl()}/api/identity${path}`, {
       method: "GET",
       headers: getAuthHeaders()
     });
@@ -501,7 +719,7 @@ const identitySend = async (method, path, body, label, options = {}) => {
     if (options.form) delete headers["Content-Type"];   // để trình duyệt tự đặt multipart boundary
     const token = currentStepUp();
     if (token) headers[STEP_UP_HEADER] = token;
-    return fetch(`${httpUrl}/api/identity${path}`, {
+    return fetch(`${gatewayUrl()}/api/identity${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : (options.form ? body : JSON.stringify(body))
@@ -661,7 +879,7 @@ export const identityAPI = {
  */
 const mcpRequest = async (method, path, body, label) => {
   try {
-    const response = await fetch(`${httpUrl}/api/mcp${path}`, {
+    const response = await fetch(`${gatewayUrl()}/api/mcp${path}`, {
       method,
       headers: getAuthHeaders(),
       body: body === undefined ? undefined : JSON.stringify(body)
@@ -697,7 +915,7 @@ export const mcpAPI = {
  */
 const commRequest = async (method, path, body, label) => {
   try {
-    const response = await fetch(`${httpUrl}/api/comm${path}`, {
+    const response = await fetch(`${gatewayUrl()}/api/comm${path}`, {
       method,
       headers: getAuthHeaders(),
       body: body === undefined ? undefined : JSON.stringify(body)
@@ -739,12 +957,15 @@ export const commAPI = {
   searchUsers: (q) => commRequest("GET", `/users/search?q=${encodeURIComponent(q)}`, undefined, "tìm người dùng"),
   listUnits: () => commRequest("GET", "/units", undefined, "truy vấn phân vùng OpenLDAP"),
 
+  // Nhật ký cuộc gọi thoại / video của hội thoại: { calls: [{ id, media, status, caller_id, callee_id, duration, ... }] }
+  listCalls: (convId) => commRequest("GET", `/calls?conversation_id=${encodeURIComponent(convId)}`, undefined, "tải nhật ký cuộc gọi"),
+
   // Tải tệp lên hội thoại => { attachment: { id, name, size, mime } }; gửi kèm tin bằng attachments: [id]
   uploadAttachment: async (convId, file) => {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch(`${httpUrl}/api/comm${convPath(convId)}/attachments`, {
+      const response = await fetch(`${gatewayUrl()}/api/comm${convPath(convId)}/attachments`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${localStorage.getItem("tara_token") || ""}` },
         body: formData
@@ -759,7 +980,7 @@ export const commAPI = {
   // Tải tệp đính kèm (cần JWT nên không dùng liên kết trực tiếp): trả Blob hoặc { status: "FAIL", detail }
   downloadAttachment: async (convId, attachmentId) => {
     try {
-      const response = await fetch(`${httpUrl}/api/comm${convPath(convId)}/attachments/${encodeURIComponent(attachmentId)}`, {
+      const response = await fetch(`${gatewayUrl()}/api/comm${convPath(convId)}/attachments/${encodeURIComponent(attachmentId)}`, {
         headers: { "Authorization": `Bearer ${localStorage.getItem("tara_token") || ""}` }
       });
       if (!response.ok) return await parseResponse(response);
@@ -779,7 +1000,7 @@ export const commAPI = {
  */
 const systemGet = async (path, label) => {
   try {
-    const response = await fetch(`${httpUrl}/api/system${path}`, {
+    const response = await fetch(`${gatewayUrl()}/api/system${path}`, {
       method: "GET",
       headers: getAuthHeaders()
     });
@@ -796,7 +1017,11 @@ export const systemAPI = {
   getMetrics: () => systemGet("/metrics", "truy vấn tài nguyên AI Server"),
 
   // { file, lines: [{ level, text }] } - chỉ quản trị viên
-  getLogs: (lines = 100) => systemGet(`/logs?lines=${encodeURIComponent(lines)}`, "truy vấn nhật ký hệ thống")
+  getLogs: (lines = 100) => systemGet(`/logs?lines=${encodeURIComponent(lines)}`, "truy vấn nhật ký hệ thống"),
+
+  // Trạng thái AI Platform: { platform, services: [{ id, name, role, state, target, latency_ms, detail, items? }],
+  // warnings: [{ level, message }], summary }. refresh=true: bỏ qua bộ đệm của Backend (nút "Kiểm tra lại")
+  getStatus: (refresh = false) => systemGet(`/status${refresh ? "?refresh=true" : ""}`, "kiểm tra trạng thái AI Platform")
 };
 
 /**
@@ -847,6 +1072,23 @@ export const takePendingDomain = () => {
     const key = sessionStorage.getItem(PENDING_DOMAIN_KEY);
     sessionStorage.removeItem(PENDING_DOMAIN_KEY);
     return key;
+  } catch {
+    return null;
+  }
+};
+
+// Nút "Tiếp tục hội thoại" ở trang Lịch sử Làm việc: Workspace chọn kho của phiên rồi nạp lại toàn bộ tin nhắn
+const PENDING_THREAD_KEY = "tara_open_thread";
+export const requestOpenThread = (thread) => {
+  try {
+    sessionStorage.setItem(PENDING_THREAD_KEY, JSON.stringify({ thread_id: thread.thread_id, title: thread.title, domain: thread.domain, created_at: thread.updated_at || thread.created_at }));
+  } catch { /* bỏ qua: chỉ không tự mở phiên */ }
+};
+export const takePendingThread = () => {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(PENDING_THREAD_KEY) || "null");
+    sessionStorage.removeItem(PENDING_THREAD_KEY);
+    return value?.thread_id ? value : null;
   } catch {
     return null;
   }

@@ -6,7 +6,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Building2, RefreshCw, Users } from 'lucide-react';
 import { identityAPI } from '../../services/api';
-import { Button, Notice, ROLE_COLORS, Section } from './shared';
+import { Button, Notice, Section } from './shared';
+import { ROLE_COLORS } from './utils';
 
 // Đơn vị = phần thứ ba của ou "<ORGID>:<vai trò>:<đơn vị>" (bộ môn, khóa học, đơn vị nội bộ), chỉ đọc.
 // Đơn vị được gán cùng vai trò của người dùng; thành viên các phân vùng làm việc quản trị ở tab Phân vùng.

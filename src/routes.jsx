@@ -11,6 +11,8 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard'; // Trang phụ th�
 import IdentityManager from './pages/IdentityManager'; // Trang phụ Quản trị Định danh (OpenLDAP)
 import McpManager from './pages/McpManager'; // Trang phụ Tích hợp MCP (MCP Server /api/mcp và MCP Server bên ngoài)
 import CommManager from './pages/CommManager'; // Trang phụ Trao đổi trực tuyến (Text Chat người dùng/nhóm/Trợ lý AI)
+import HistoryManager from './pages/HistoryManager'; // Trang phụ Lịch sử Làm việc (phiên hội thoại trên các Kho Tri thức)
+import CommProvider from './comm/CommProvider'; // Kết nối /ws/comm dùng chung: cuộc gọi đến đổ chuông ở mọi trang
 
 // --- RÀO CHẮN BẢO MẬT PHÂN QUYỀN (ROUTER GUARD) ---
 const ProtectedRoute = ({ children }) => {
@@ -23,8 +25,16 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Giám sát Hệ thống chỉ dành cho vai trò admin (Backend vẫn kiểm tra SYSTEM_MONITOR_ROLES ở từng API)
+const AdminRoute = ({ children }) => {
+  let role = '';
+  try { role = JSON.parse(localStorage.getItem("tara_user") || "null")?.userRole || ''; } catch { /* phiên hỏng: coi như không phải admin */ }
+  return role === 'admin' ? <ProtectedRoute>{children}</ProtectedRoute> : <Navigate to="/" replace />;
+};
+
 export default function AppRoutes() {
   return (
+    <CommProvider>
     <Routes>
       {/* 1. Trang chủ tích hợp (Chứa các state chuyển đổi LOGIN -> FACEID -> WORKSPACE) */}
       <Route path="/" element={<App />} />
@@ -43,9 +53,9 @@ export default function AppRoutes() {
       <Route 
         path="/analytics" 
         element={
-          <ProtectedRoute>
+          <AdminRoute>
             <AnalyticsDashboard />
-          </ProtectedRoute>
+          </AdminRoute>
         } 
       />
 
@@ -79,8 +89,19 @@ export default function AppRoutes() {
         }
       />
 
+      {/* 7. Trang phụ Lịch sử Làm việc: xem lại, tiếp tục hoặc xóa phiên hội thoại của chính người dùng */}
+      <Route
+        path="/history"
+        element={
+          <ProtectedRoute>
+            <HistoryManager />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Rẽ nhánh dự phòng: Mọi đường dẫn không hợp lệ đều chuyển hướng về trang chủ */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </CommProvider>
   );
 }

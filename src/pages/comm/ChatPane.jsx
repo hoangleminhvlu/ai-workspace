@@ -3,18 +3,20 @@
  * Tập tin tạo lập môi trường trao đổi thông tin Text/Voice/Video Chat cho người dùng.
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Reply, RotateCw, Send, Trash2, Users, X } from 'lucide-react';
-import { Avatar, KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './shared';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import Markdown from '../../components/Markdown';
+import MessageActions from '../../components/MessageActions';
+import { LocationChip, AnswerFooter } from '../../components/AnswerMeta';
+import { PROSE } from '../../components/answerFormat';
+import { AlertCircle, ArrowLeft, Bot, Check, CheckCheck, Clock, FileText, Loader2, Paperclip, Pencil, Phone, PhoneMissed, Reply, RotateCw, Send, Trash2, Users, Video, X } from 'lucide-react';
+import { Avatar } from './shared';
+import { KIND_INFO, conversationTitle, formatDay, formatShortTime, formatSize } from './utils';
 
 // Khung trò chuyện của một hội thoại: tin nhắn (Markdown, không nhận HTML thô), trả lời/sửa/xóa tin của mình,
-// tệp đính kèm, luồng trả lời của Trợ lý AI, "đang gõ", "đã xem" (hội thoại trực tiếp).
+// tệp đính kèm, luồng trả lời của Trợ lý AI, "đang gõ", "đã xem" (hội thoại trực tiếp), nút gọi thoại / video và
+// tin nhắn ghi lại cuộc gọi (kind = 'call').
 
 const TYPING_THROTTLE_MS = 3000;
-const markdownComponents = {
-  a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-};
 
 const Attachment = ({ att, onDownload, onRemove }) => (
   <span className="inline-flex items-center gap-1.5 max-w-full pl-2 pr-1 py-1 rounded-lg border border-line bg-elevated text-[11px] text-fg">
@@ -31,10 +33,25 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(msg.content);
 
+  if (msg.sender_type === 'system' && msg.kind === 'call') {
+    const missed = ['missed', 'busy', 'rejected'].includes(msg.metadata?.status);
+    const Icon = missed ? PhoneMissed : msg.metadata?.media === 'video' ? Video : Phone;
+    return (
+      <div className="self-center inline-flex items-center gap-1.5 px-3 py-1 my-0.5 rounded-full border border-line bg-elevated text-[11px] text-fg-muted">
+        <Icon size={12} className={missed ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'} />
+        <span>{msg.content.replace(/^\S+\s/, '')}</span>
+        <span className="text-fg-subtle">· {formatShortTime(msg.created_at)}</span>
+      </div>
+    );
+  }
   if (msg.sender_type === 'system') {
     return <div className="text-center text-[11px] text-fg-subtle py-1">{msg.content}</div>;
   }
   const assistant = msg.sender_type === 'assistant';
+  const meta = msg.metadata || {};
+  const bodyId = `comm-message-body-${msg.id}`;
+  // Câu trả lời của Trợ lý AI: Sao chép / Lưu DOCX như khung AI Chat/Work (tên tệp DOCX theo câu hỏi được trả lời)
+  const answerActions = assistant && !msg.deleted && !!msg.content?.trim();
   const saveEdit = () => {
     if (draft.trim() && draft.trim() !== msg.content) onEdit(msg, draft.trim());
     setEditing(false);
@@ -43,8 +60,16 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
   return (
     <div className={`group flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
       {!mine && (showSender ? <Avatar name={msg.sender_name} kind={assistant ? 'assistant' : undefined} size="sm" /> : <span className="w-7 shrink-0" />)}
-      <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${mine ? 'items-end' : 'items-start'}`}>
-        {showSender && !mine && <span className="text-[10px] font-semibold text-fg-muted px-1 mb-0.5">{msg.sender_name}</span>}
+      {/* Câu trả lời của Trợ lý AI rộng hơn tin nhắn thường (bảng, danh sách); tên kèm mô hình và On-Premises / On-Clouds
+          như khung AI Chat/Work */}
+      <div className={`flex flex-col min-w-0 ${assistant ? 'max-w-[92%] sm:max-w-[85%]' : 'max-w-[85%] sm:max-w-[75%]'} ${mine ? 'items-end' : 'items-start'}`}>
+        {showSender && !mine && (
+          <span className="text-[10px] font-semibold text-fg-muted px-1 mb-0.5 flex flex-wrap items-center gap-1.5">
+            {msg.sender_name}
+            {assistant && meta.model && <span className="font-mono font-normal text-fg-subtle" title={meta.runtime_name || undefined}>· {meta.model}</span>}
+            {assistant && <LocationChip location={meta.location} />}
+          </span>
+        )}
         {replied && (
           <div className="text-[10px] text-fg-subtle border-l-2 border-line pl-2 mb-1 max-w-full truncate">
             ↪ {replied.sender_name}: {replied.deleted ? 'Tin nhắn đã bị xóa' : replied.content || '[Tệp đính kèm]'}
@@ -65,9 +90,13 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
           ) : (
             <>
               {msg.content && (
-                <div className={`prose prose-sm max-w-none break-words ${mine ? 'prose-invert' : 'dark:prose-invert'} [&>*:first-child]:mt-0 [&>*:last-child]:mb-0`}>
-                  <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                <div id={bodyId} className={`${PROSE} ${mine ? 'prose-invert' : 'dark:prose-invert'}`}>
+                  <Markdown>{msg.content}</Markdown>
                 </div>
+              )}
+              {answerActions && (
+                <MessageActions content={msg.content} isAsst prompt={replied && !replied.deleted ? String(replied.content || '').replace(/(^|\s)@ai\b/gi, ' ').trim() : ''}
+                  getHtml={() => document.getElementById(bodyId)?.innerHTML} />
               )}
               {msg.attachments?.length > 0 && (
                 <div className={`flex flex-col gap-1 ${msg.content ? 'mt-1.5' : ''}`}>
@@ -78,9 +107,14 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
           )}
         </div>
         <div className={`flex items-center gap-1.5 px-1 mt-0.5 text-[10px] text-fg-subtle ${mine ? 'flex-row-reverse' : ''}`}>
-          <span>{formatShortTime(msg.created_at)}</span>
-          {msg.edited_at && !msg.deleted && <span>· đã sửa</span>}
-          {assistant && msg.metadata?.model && <span>· {msg.metadata.model}</span>}
+          {/* Trợ lý AI: giờ bắt đầu → kết thúc · thời lượng · token (câu trả lời cũ chưa có thông tin này: chỉ giờ gửi và mô hình) */}
+          {assistant && meta.started_at ? <AnswerFooter meta={meta} at={msg.created_at} className="px-0 mt-0" /> : (
+            <>
+              <span>{formatShortTime(msg.created_at)}</span>
+              {msg.edited_at && !msg.deleted && <span>· đã sửa</span>}
+              {assistant && meta.model && !showSender && <span>· {meta.model}</span>}
+            </>
+          )}
           {mine && (msg.failed ? (
             <button type="button" onClick={() => onRetry(msg)} className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline" title={msg.error}>
               <AlertCircle size={11} /> Chưa gửi được · Gửi lại <RotateCw size={10} />
@@ -167,11 +201,12 @@ function Composer({ conversation, limits, assistantAvailable, onSend, onUpload, 
 }
 
 export default function ChatPane({ conversation, me, thread, aiStream, typingNames, status, limits, assistantAvailable, replyTo, setReplyTo,
-  onBack, onOpenMembers, onLoadOlder, onSend, onRetry, onEdit, onDelete, onUpload, onDownload, onTyping }) {
+  onBack, onOpenMembers, onLoadOlder, onSend, onRetry, onEdit, onDelete, onUpload, onDownload, onTyping, callsAllowed, inCall, onCall }) {
   const scrollRef = useRef(null);
   const nearBottom = useRef(true);
   const prevHeight = useRef(null);
-  const items = thread?.items || [];
+  // useMemo: khi chưa có thread, [] không được tạo mới mỗi lần render (tránh chạy lại useLayoutEffect cuộn trang)
+  const items = useMemo(() => thread?.items || [], [thread?.items]);
   const byId = new Map(items.map(m => [m.id, m]));
   const peer = conversation.kind === 'direct' ? conversation.members.find(m => m.user_id !== me) : null;
   const online = conversation.members.filter(m => m.online).length;
@@ -214,6 +249,15 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
             {conversation.kind !== 'direct' && conversation.metadata?.domain && <span>· Kho {conversation.metadata.domain}</span>}
           </div>
         </div>
+        {conversation.kind === 'direct' && callsAllowed && (['audio', 'video'].map(media => {
+          const CallIcon = media === 'video' ? Video : Phone;
+          const label = media === 'video' ? 'Gọi video' : 'Gọi thoại';
+          return (
+            <button key={media} onClick={() => onCall(media)} disabled={inCall || status !== 'online'} aria-label={label}
+              title={inCall ? 'Bạn đang trong một cuộc gọi' : status !== 'online' ? 'Đang kết nối máy chủ Trao đổi trực tuyến...' : label}
+              className="p-2 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong disabled:opacity-40 disabled:hover:bg-transparent"><CallIcon size={16} /></button>
+          );
+        }))}
         <button onClick={onOpenMembers} aria-label="Thông tin hội thoại" className="p-2 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong"><Users size={16} /></button>
       </header>
 
@@ -254,13 +298,17 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
         {aiStream && (
           <div className="flex gap-2">
             <Avatar name="Trợ lý AI" kind="assistant" size="sm" />
-            <div className="flex flex-col items-start max-w-[85%] sm:max-w-[75%]">
-              <span className="text-[10px] font-semibold text-fg-muted px-1 mb-0.5 flex items-center gap-1"><Bot size={11} /> Trợ lý AI · {aiStream.model}</span>
+            <div className="flex flex-col items-start min-w-0 max-w-[92%] sm:max-w-[85%]">
+              <span className="text-[10px] font-semibold text-fg-muted px-1 mb-0.5 flex flex-wrap items-center gap-1.5">
+                <Bot size={11} /> Trợ lý AI <span className="font-mono font-normal text-fg-subtle">· {aiStream.model}</span>
+                <LocationChip location={aiStream.location} />
+              </span>
               <div className="rounded-2xl px-3 py-2 text-sm bg-card border border-line break-words max-w-full">
                 {aiStream.text ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"><ReactMarkdown components={markdownComponents}>{aiStream.text}</ReactMarkdown></div>
-                ) : <span className="inline-flex items-center gap-2 text-xs text-fg-subtle"><Loader2 size={12} className="animate-spin" /> Đang suy nghĩ...</span>}
+                  <div className={`${PROSE} dark:prose-invert`}><Markdown>{aiStream.text}</Markdown></div>
+                ) : <span className="inline-flex items-center gap-2 text-xs text-fg-subtle"><Loader2 size={12} className="animate-spin" /> {aiStream.status || 'Đang tra Kho Tri thức và soạn câu trả lời...'}</span>}
               </div>
+              <AnswerFooter meta={{ pending: true, started_at: aiStream.started_at }} />
             </div>
           </div>
         )}

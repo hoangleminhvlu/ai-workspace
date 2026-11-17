@@ -4,15 +4,21 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Cpu, HardDrive, Database, Activity, Server,
   Layers, FileText, Clock, AlertTriangle
 } from 'lucide-react';
 import iThunderAPI, { systemAPI } from '../services/api';
+import PlatformStatusPanel from './system/PlatformStatusPanel';
 
 const METRICS_INTERVAL_MS = 5000;
 const LOGS_INTERVAL_MS = 15000;
+
+const TABS = [
+  { id: 'ai', label: 'Máy chủ AI', Icon: Cpu },
+  { id: 'platform', label: 'AI Platform', Icon: Server },
+];
 
 const formatUptime = (seconds) => {
   if (!seconds && seconds !== 0) return '—';
@@ -109,6 +115,9 @@ function ModelsCard({ models, ollama }) {
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') === 'platform' ? 'platform' : 'ai';
+  const setTab = (id) => setSearchParams(id === 'ai' ? {} : { tab: id }, { replace: true });
   const [summaryData, setSummaryData] = useState({ totalFiles: 0, totalChunks: 0, totalCollections: 0 });
   // metrics: null (đang tải) | { runtimes, config_error, timestamp }; metricsError: thông điệp lỗi gần nhất
   const [metrics, setMetrics] = useState(null);
@@ -181,40 +190,57 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="w-screen h-app flex flex-col bg-app text-fg font-sans antialiased overflow-hidden">
-      <header className="h-14 border-b border-line bg-panel px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-1.5 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong transition-all"><ArrowLeft size={16} /></button>
-          <span className="text-sm font-bold uppercase tracking-wider text-fg">Giám sát Hạ tầng & Hiệu năng AI Server</span>
+      <header className="h-14 border-b border-line bg-panel px-3 sm:px-6 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button onClick={() => navigate('/')} aria-label="Quay lại AI Workspace" className="p-1.5 rounded-lg hover:bg-hover text-fg-muted hover:text-fg-strong transition-all shrink-0"><ArrowLeft size={16} /></button>
+          <span className="text-sm font-bold uppercase tracking-wider text-fg truncate">
+            Giám sát Hệ thống
+          </span>
         </div>
-        {online ? (
-          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium font-mono bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 px-2.5 py-1 rounded-md">
-            <Activity size={12} className="animate-pulse" /><span>Hệ thống trực tuyến</span>
+        {/* Điện thoại: chỉ còn biểu tượng + chữ ngắn để không bẻ dòng thanh tiêu đề */}
+        {tab === 'ai' && (online ? (
+          <div className="shrink-0 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium font-mono bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 px-2.5 py-1 rounded-md" title="Mọi Máy chủ AI và nguồn giám sát đều phản hồi">
+            <Activity size={12} className="animate-pulse" /><span className="hidden sm:inline">Hệ thống trực tuyến</span><span className="sm:hidden">Ổn định</span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium font-mono bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 px-2.5 py-1 rounded-md">
-            <AlertTriangle size={12} /><span>{metrics || metricsError ? 'Có nguồn giám sát lỗi' : 'Đang kết nối...'}</span>
+          <div className="shrink-0 flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium font-mono bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 px-2.5 py-1 rounded-md">
+            <AlertTriangle size={12} />
+            <span className="hidden sm:inline">{metrics || metricsError ? 'Có nguồn giám sát lỗi' : 'Đang kết nối...'}</span>
+            <span className="sm:hidden">{metrics || metricsError ? 'Có lỗi' : '...'}</span>
           </div>
-        )}
+        ))}
       </header>
 
-      <main className="flex-1 p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-panel border border-line rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400"><Layers size={20}/></div>
-            <div className="flex flex-col"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide">Vùng Kho</span><b className="text-fg-strong text-lg font-mono mt-0.5">{summaryData.totalCollections} Vùng</b></div>
+      {/* Hai nhóm giám sát: Máy chủ AI (Ollama, GPU, nhật ký) và các dịch vụ nền của AI Platform; ?tab=platform mở thẳng tab sau */}
+      <nav className="border-b border-line bg-panel px-3 sm:px-6 flex gap-1 shrink-0 overflow-x-auto" role="tablist">
+        {TABS.map(t => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors ${tab === t.id
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-fg-muted hover:text-fg-strong'}`}>
+            <t.Icon size={13} /> {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="flex-1 p-3 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-y-auto custom-scrollbar">
+        {tab === 'platform' ? <PlatformStatusPanel /> : (<>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400"><Layers size={20}/></div>
+            <div className="flex flex-col min-w-0"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide truncate">Vùng Kho</span><b className="text-fg-strong text-base sm:text-lg font-mono mt-0.5 truncate">{summaryData.totalCollections} Vùng</b></div>
           </div>
-          <div className="bg-panel border border-line rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-cyan-600/10 border border-cyan-500/20 flex items-center justify-center text-cyan-600 dark:text-cyan-400"><FileText size={20}/></div>
-            <div className="flex flex-col"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide">Tài liệu RAG</span><b className="text-fg-strong text-lg font-mono mt-0.5">{summaryData.totalFiles} Tệp</b></div>
+          <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-cyan-600/10 border border-cyan-500/20 flex items-center justify-center text-cyan-600 dark:text-cyan-400"><FileText size={20}/></div>
+            <div className="flex flex-col min-w-0"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide truncate">Tài liệu RAG</span><b className="text-fg-strong text-base sm:text-lg font-mono mt-0.5 truncate">{summaryData.totalFiles} Tệp</b></div>
           </div>
-          <div className="bg-panel border border-line rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400"><Database size={20}/></div>
-            <div className="flex flex-col"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide">Vector Chunks</span><b className="text-fg-strong text-lg font-mono mt-0.5">{summaryData.totalChunks} Đoạn</b></div>
+          <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400"><Database size={20}/></div>
+            <div className="flex flex-col min-w-0"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide truncate">Vector Chunks</span><b className="text-fg-strong text-base sm:text-lg font-mono mt-0.5 truncate">{summaryData.totalChunks} Đoạn</b></div>
           </div>
-          <div className="bg-panel border border-line rounded-2xl p-4 flex items-center gap-4 shadow-sm" title={loadedModels.map(m => `${m.name} @ ${m.runtime} (${m.vram_gb} GB VRAM)`).join('\n')}>
-            <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400"><Server size={20}/></div>
-            <div className="flex flex-col"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide">Mô hình nội bộ{runtimes.length > 1 ? ` · ${runtimes.length} máy` : ''}</span>
-              <b className="text-fg-strong text-lg font-mono mt-0.5">{metrics ? `${loadedModels.length} Live / ${installedCount}` : '—'}</b>
+          <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0" title={loadedModels.map(m => `${m.name} @ ${m.runtime} (${m.vram_gb} GB VRAM)`).join('\n')}>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-amber-600/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400"><Server size={20}/></div>
+            <div className="flex flex-col min-w-0"><span className="text-[10px] text-fg-subtle font-bold uppercase tracking-wide">Mô hình nội bộ{runtimes.length > 1 ? ` · ${runtimes.length} máy` : ''}</span>
+              <b className="text-fg-strong text-base sm:text-lg font-mono mt-0.5 truncate">{metrics ? `${loadedModels.length} Live / ${installedCount}` : '—'}</b>
             </div>
           </div>
         </div>
@@ -258,6 +284,7 @@ export default function AnalyticsDashboard() {
             </div>
           </div>
         )}
+        </>)}
       </main>
     </div>
   );

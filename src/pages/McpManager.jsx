@@ -7,7 +7,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Cable, Check, Copy, Pencil, Plug, PlugZap, Plus, Server, Trash2, Wrench } from 'lucide-react';
 import { mcpAPI } from '../services/api';
-import { Button, Field, Modal, Notice, Section, controlCls, formatDateTime, inputCls } from './identity/shared';
+import { Button, Field, Modal, Notice, Section, controlCls, inputCls } from './identity/shared';
+import { formatDateTime } from './identity/utils';
 
 // Trang Tích hợp MCP (Model Context Protocol):
 // - Mọi thành viên: địa chỉ MCP Server /api/mcp của Gateway để kết nối Claude Desktop/Claude Code, công cụ AI được dùng trong Chat
