@@ -28,7 +28,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "AI-TECH Center - Van Lang University",
     "category": "Productivity",
     "shortDescription": "iThunder AI Workspace",
@@ -41,12 +43,18 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Vietnamese", "English"],
+        "languages": [
+          "Vietnamese",
+          "English"
+        ],
         "displayLanguageSelector": false
       }
-    }
+    },
+    "copyright": "© 2026 AI-TECH Center - Van Lang University. GPL-3.0"
   }
 }

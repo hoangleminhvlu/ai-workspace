@@ -6,9 +6,11 @@
     "androidScheme": "http"
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
   },
   "ios": {
-    "contentInset": "never"
+    "contentInset": "never",
+    "webContentsDebuggingEnabled": false
   }
 }
