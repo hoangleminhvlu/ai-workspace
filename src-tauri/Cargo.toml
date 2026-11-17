@@ -1,0 +1,25 @@
+[package]
+name = "ai-workspace"
+version = "6.11.16"
+description = "iThunder AI Workspace - ứng dụng Windows"
+authors = ["AI-TECH Center - Van Lang University"]
+license = "GPL-3.0-only"
+repository = "https://github.com/hoangleminhvlu/ai-workspace"
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "ai_workspace_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-log = "2"

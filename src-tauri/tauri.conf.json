@@ -1,0 +1,52 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "iThunder AI Workspace",
+  "version": "../package.json",
+  "identifier": "vn.istech.aiworkspace",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "iThunder AI Workspace",
+        "width": 1366,
+        "height": 860,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "AI-TECH Center - Van Lang University",
+    "category": "Productivity",
+    "shortDescription": "iThunder AI Workspace",
+    "longDescription": "Ứng dụng máy trạm AI Workspace của iThunder AI OS, kết nối AI Gateway On-Premise hoặc On-Clouds của Tổ chức.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Vietnamese", "English"],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
