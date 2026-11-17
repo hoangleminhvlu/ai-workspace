@@ -33,9 +33,33 @@ npm run win:build         # bộ cài NSIS: src-tauri/target/x86_64-pc-windows-m
 npm run android:build     # APK debug: android/app/build/outputs/apk/debug/app-debug.apk
 npm run android:emulator  # bật trình giả lập Android (KVM, hiện qua WSLg), cài và mở APK debug
 npm run android:install   # cài APK lên thiết bị đang kết nối: trình giả lập, hoặc điện thoại qua Gỡ lỗi không dây
-npm run android:release   # APK/AAB release (cần cấu hình khóa ký trước)
+npm run android:release   # APK/AAB release (cần khóa ký, xem bên dưới)
 npm run ios:sync          # đồng bộ dist/ vào ios/ (sau đó build trên macOS)
+npm run release           # bộ phát hành dùng thử: release/<phiên bản>/ và .zip (thêm -- --copy-windows để chép vào Downloads)
 ```
+
+## Bộ phát hành dùng thử (`npm run release`)
+
+`scripts/native/release.sh` build bộ cài Windows và APK Android bản phát hành, kiểm tra chữ ký APK (không chấp nhận khóa
+debug), rồi tạo `release/<phiên bản>/` (thư mục bị bỏ qua trong git):
+
+| Tệp | Nội dung |
+|---|---|
+| `iThunder-AI-Workspace-<pb>-Windows-x64-setup.exe` | Bộ cài NSIS, cài cho người dùng hiện tại, chưa ký số |
+| `iThunder-AI-Workspace-<pb>-Android.apk` | APK ký bằng khóa phát hành, không debuggable, tắt sao lưu dữ liệu |
+| `HUONG_DAN_CAI_DAT.txt` | Hướng dẫn cho người dùng thử (mẫu: `scripts/native/release/HUONG_DAN_CAI_DAT.txt`) |
+| `SHA256SUMS.txt` | Mã SHA-256 của hai tệp cài đặt |
+
+và `release/iThunder-AI-Workspace-<pb>.zip` để gửi đi. Trước khi đóng gói, đổi phiên bản trong `package.json` và
+versionCode/versionName trong `android/app/build.gradle` (script dừng nếu hai nơi khác nhau).
+
+**Khóa ký Android** nằm NGOÀI repo: `~/.config/ithunder-signing/aiworkspace-release.jks` và
+`android-release.properties` (mật khẩu), quyền 600. `android/app/build.gradle` đọc tệp này (đổi đường dẫn bằng biến
+`ITHUNDER_ANDROID_SIGNING`). Mọi bản cập nhật phải ký bằng đúng khóa này, nếu không Android từ chối cài đè: hãy sao lưu
+cả hai tệp ở nơi an toàn (két mật khẩu, ổ mã hóa). Dấu vân tay SHA-256 của chứng thư được in trong `HUONG_DAN_CAI_DAT.txt`.
+
+**Windows** chưa có chứng thư ký mã: SmartScreen cảnh báo khi cài. Khi có chứng thư, khai báo
+`bundle.windows.signCommand` trong `src-tauri/tauri.conf.json`.
 
 Sau mỗi lần sửa giao diện, Android và iOS cần `npm run build` rồi `npx cap sync` (các lệnh trên đã gộp sẵn).
 
@@ -60,6 +84,8 @@ Cần cài bằng sudo cho bản Windows: `clang lld llvm nsis`.
   phút; vài phút đầu máy ảo rất chậm, có thể hiện "System UI isn't responding" (chọn Wait) và lần dò AI Gateway đầu
   tiên quá 8 giây (bấm "Thử lại"). Gỡ lỗi WebView:
   `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>` rồi mở `chrome://inspect` trên Windows.
-- Biểu tượng hiện là biểu tượng mặc định. Khi có ảnh vuông 1024×1024: `npx tauri icon <ảnh>` (Windows) và
-  `npx @capacitor/assets generate` (Android/iOS).
+- Biểu tượng tạm (đám mây và tia sét theo màu logo iThunder Clouds) vẽ bằng `scripts/native/icon/make_icon.py`
+  (cần Pillow) vào `assets/`. Khi có biểu tượng chính thức 1024×1024, thay các tệp trong `assets/` rồi chạy
+  `npx tauri icon assets/icon.png` (xóa `src-tauri/icons/android`, `src-tauri/icons/ios` sinh thừa) và
+  `npx @capacitor/assets generate --android --ios --iconBackgroundColor '#061430' --splashBackgroundColor '#060b13'`.
 - iOS: cần máy Mac có Xcode 26+, hoặc GitHub Actions `macos` runner, cùng tài khoản Apple Developer để ký.

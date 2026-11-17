@@ -16,7 +16,8 @@
     "android:release": "bash scripts/native/android-build.sh release",
     "android:install": "bash scripts/native/android-install.sh",
     "android:emulator": "bash scripts/native/android-emulator.sh",
-    "ios:sync": "npm run build && npx cap sync ios"
+    "ios:sync": "npm run build && npx cap sync ios",
+    "release": "bash scripts/native/release.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

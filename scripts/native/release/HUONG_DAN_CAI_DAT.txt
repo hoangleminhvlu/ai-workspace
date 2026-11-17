@@ -1,0 +1,73 @@
+iThunder AI Workspace {{VERSION}} - BẢN DÙNG THỬ
+Ứng dụng máy trạm của nền tảng iThunder AI OS cho Windows 11 và Android
+Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng gói ngày {{DATE}}
+=====================================================================================
+
+1. TRONG GÓI NÀY
+   {{WIN_FILE}}
+       Bộ cài cho máy tính Windows 11 (64-bit)
+   {{APK_FILE}}
+       Tệp cài đặt cho điện thoại, máy tính bảng Android
+   SHA256SUMS.txt
+       Mã kiểm tra tính toàn vẹn của hai tệp trên
+   HUONG_DAN_CAI_DAT.txt
+       Tài liệu này
+
+2. BẠN CẦN CHUẨN BỊ
+   - Máy tính Windows 11 64-bit, hoặc điện thoại Android 7.0 trở lên.
+   - Địa chỉ AI Gateway của Tổ chức, ví dụ https://aigate.ten-to-chuc.vn (qua Internet)
+     hoặc http://192.168.1.10:8088 (trong mạng nội bộ). Hỏi Quản trị viên của Tổ chức.
+   - Tài khoản và PassCode 6 chữ số do Tổ chức cấp (nhận qua Email).
+   - Camera để quét khuôn mặt (FaceID) khi hệ thống yêu cầu.
+
+3. CÀI ĐẶT TRÊN WINDOWS 11
+   Bước 1. Mở tệp {{WIN_FILE}}.
+   Bước 2. Bản dùng thử chưa được ký số nên Windows có thể hiện "Windows protected your PC"
+           (Windows đã bảo vệ PC của bạn): bấm "More info" (Thêm thông tin), rồi "Run anyway" (Vẫn chạy).
+           Chỉ làm vậy với tệp nhận từ Trung tâm AI-TECH hoặc Quản trị viên của Tổ chức.
+   Bước 3. Làm theo trình cài đặt. Ứng dụng cài cho tài khoản Windows của bạn, không cần quyền quản trị.
+           Nếu máy thiếu Microsoft Edge WebView2 (hiếm gặp trên Windows 11), bộ cài tự tải về (cần Internet).
+   Bước 4. Mở "iThunder AI Workspace" từ menu Start.
+
+4. CÀI ĐẶT TRÊN ANDROID
+   Bước 1. Chép tệp {{APK_FILE}} vào điện thoại (Zalo, Email, cáp USB...) rồi mở tệp.
+   Bước 2. Nếu Android hỏi có cho phép cài ứng dụng không rõ nguồn gốc ("Install unknown apps"),
+           hãy cho phép đối với ứng dụng bạn dùng để mở tệp (Zalo, trình quản lý tệp, trình duyệt).
+   Bước 3. Bấm "Cài đặt". Nếu Google Play Protect cảnh báo ứng dụng chưa được xác minh,
+           chọn "Thông tin chi tiết" rồi "Vẫn cài đặt".
+   Bước 4. Mở ứng dụng "iThunder AI Workspace". Khi quét khuôn mặt hoặc gọi thoại, video,
+           ứng dụng hỏi quyền dùng camera, micro: hãy cho phép.
+
+5. LẦN ĐẦU SỬ DỤNG
+   Bước 1. Ở mục AI GATEWAY trên màn hình đăng nhập, nhập địa chỉ AI Gateway của Tổ chức
+           (hoặc chọn trong danh sách gợi ý) rồi bấm "Kết nối".
+   Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
+   Bước 3. Nhập PassCode, bấm "Xác thực Định danh"; quét khuôn mặt nếu được yêu cầu.
+   - AI Gateway trong mạng nội bộ (On-Premise): máy của bạn phải nối vào mạng của Tổ chức.
+   - AI Gateway qua Internet phải dùng https://; ứng dụng từ chối địa chỉ http:// đi qua Internet.
+   - Địa chỉ AI Gateway được ghi nhớ sau lần đăng nhập thành công đầu tiên; bấm "Đổi" để chọn lại.
+   - Nếu thấy "AI Gateway không phản hồi sau 8 giây": kiểm tra mạng, địa chỉ, rồi bấm "Thử lại".
+
+6. KIỂM TRA TỆP CÀI ĐẶT (khuyến nghị khi nhận tệp qua mạng)
+   Trên Windows, mở PowerShell trong thư mục chứa tệp và chạy:
+       Get-FileHash "{{WIN_FILE}}" -Algorithm SHA256
+   Kết quả phải trùng với dòng tương ứng trong SHA256SUMS.txt.
+   Tệp Android được ký bằng chứng thư của iThunder AI Workspace, dấu vân tay SHA-256:
+       {{APK_CERT}}
+
+7. GỠ CÀI ĐẶT
+   Windows: Settings (Cài đặt) > Apps (Ứng dụng) > Installed apps > iThunder AI Workspace > Uninstall.
+   Android: chạm và giữ biểu tượng ứng dụng, chọn "Gỡ cài đặt".
+
+8. GIỚI HẠN CỦA BẢN DÙNG THỬ
+   - Bộ cài Windows chưa được ký số (vì vậy có cảnh báo ở mục 3).
+   - Đã kiểm tra: cài đặt, mở ứng dụng, kết nối AI Gateway, hiển thị Tổ chức và màn hình làm việc.
+     Đăng nhập bằng PassCode, quét khuôn mặt, gọi thoại và video trên ứng dụng đang được kiểm thử thêm.
+   - Chưa có bản cho iPhone, iPad. Trên các máy này, hãy dùng AI Workspace qua trình duyệt web.
+   - Bản dùng thử có thể thay đổi; dữ liệu làm việc nằm trên máy chủ của Tổ chức, không nằm trong ứng dụng.
+
+9. GÓP Ý VÀ BÁO LỖI
+   Gửi về Trung tâm AI-TECH, Trường Đại học Văn Lang: ai-tech.center@vlu.edu.vn
+   Xin ghi rõ: phiên bản ({{VERSION}}), thiết bị và hệ điều hành, việc đang làm, thông báo lỗi,
+   kèm ảnh chụp màn hình. KHÔNG gửi PassCode.
+   Hướng dẫn chi tiết: tài liệu "Hướng dẫn sử dụng AI Workspace" (TL1), mục 2.8.

@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+// Khóa ký bản phát hành: đọc từ tệp NGOÀI repo (mặc định ~/.config/ithunder-signing/android-release.properties,
+// đổi bằng biến môi trường ITHUNDER_ANDROID_SIGNING). Thiếu tệp thì bản release không được ký.
+def signingProps = new Properties()
+def signingFile = file(System.getenv("ITHUNDER_ANDROID_SIGNING")
+        ?: "${System.getProperty('user.home')}/.config/ithunder-signing/android-release.properties")
+if (signingFile.exists()) {
+    signingFile.withInputStream { signingProps.load(it) }
+}
+
 android {
     namespace = "vn.aitech.aiworkspace"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +25,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (signingProps['storeFile']) {
+            release {
+                storeFile file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingProps['storeFile']) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
