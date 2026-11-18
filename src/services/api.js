@@ -721,13 +721,14 @@ const currentStepUp = () => (stepUpToken && stepUpToken.expiresAt > Date.now() ?
 
 // Thao tác ghi: trả { status: "SUCCESS", message, changes, user } hoặc { status: "FAIL", detail, httpStatus }.
 // options.form: gửi FormData (multipart); options.raw: trả về Response gốc (tải tệp) khi thành công.
-const identitySend = async (method, path, body, label, options = {}) => {
+// Dùng chung cho Quản trị Định danh (/api/identity) và khóa API dịch vụ AI On-Clouds (/api/cloud-ai).
+const stepUpSend = async (url, method, body, label, options = {}) => {
   const send = () => {
     const headers = getAuthHeaders();
     if (options.form) delete headers["Content-Type"];   // để trình duyệt tự đặt multipart boundary
     const token = currentStepUp();
     if (token) headers[STEP_UP_HEADER] = token;
-    return fetch(`${gatewayUrl()}/api/identity${path}`, {
+    return fetch(`${gatewayUrl()}${url}`, {
       method,
       headers,
       body: body === undefined ? undefined : (options.form ? body : JSON.stringify(body))
@@ -750,6 +751,9 @@ const identitySend = async (method, path, body, label, options = {}) => {
     return { status: "FAIL", detail: "Không thể kết nối AI Gateway. Hãy thử lại!" };
   }
 };
+
+const identitySend = (method, path, body, label, options = {}) =>
+  stepUpSend(`/api/identity${path}`, method, body, label, options);
 
 const uidPath = (uidNumber) => `/users/${encodeURIComponent(uidNumber)}`;
 const cloudPath = (branch, gid) => `/clouds/${encodeURIComponent(branch)}/${encodeURIComponent(gid)}`;
@@ -1017,6 +1021,24 @@ const systemGet = async (path, label) => {
     console.error(`[iThunder API] Lỗi ${label}:`, error);
     return { status: "FAIL", detail: "Không thể kết nối AI Gateway. Hãy thử lại!" };
   }
+};
+
+/**
+ * Dịch vụ AI On-Clouds của Tổ chức - /api/cloud-ai/... (chỉ Quản trị viên). Khóa API chỉ đi một chiều: giao diện gửi khóa
+ * lên khi lưu hoặc kiểm tra, AI Platform không bao giờ trả lại khóa (chỉ cờ configured). Lưu / xóa khóa, sửa mô hình,
+ * bật / tắt cần xác nhận PassCode (HTTP 428 => stepUpHandler).
+ */
+const cloudPathOf = (provider) => `/api/cloud-ai/providers/${encodeURIComponent(provider)}`;
+export const cloudAIAPI = {
+  // { providers: [{ id, name, protocol, base_url, console, configured, undecryptable, enabled, models, default_models,
+  //   key_set_at, key_set_by_name, updated_at, updated_by_name }], step_up_minutes, outside_knowledge_onclouds }
+  listProviders: () => stepUpSend("/api/cloud-ai/providers", "GET", undefined, "truy vấn dịch vụ AI On-Clouds"),
+  setKey: (provider, apiKey) => stepUpSend(`${cloudPathOf(provider)}/key`, "PUT", { api_key: apiKey }, "lưu khóa API"),
+  clearKey: (provider) => stepUpSend(`${cloudPathOf(provider)}/key`, "DELETE", undefined, "xóa khóa API"),
+  // patch: { models: [tên mô hình], enabled: true | false }
+  updateProvider: (provider, patch) => stepUpSend(cloudPathOf(provider), "PATCH", patch, "cập nhật dịch vụ AI On-Clouds"),
+  // apiKey bỏ trống: kiểm tra khóa đã lưu => { ok, http_status, detail }
+  testKey: (provider, apiKey = "") => stepUpSend(`${cloudPathOf(provider)}/test`, "POST", apiKey ? { api_key: apiKey } : {}, "kiểm tra khóa API"),
 };
 
 export const systemAPI = {

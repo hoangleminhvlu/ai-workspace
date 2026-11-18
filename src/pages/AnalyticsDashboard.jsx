@@ -7,10 +7,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Cpu, HardDrive, Database, Activity, Server,
-  Layers, FileText, Clock, AlertTriangle
+  Layers, FileText, Clock, AlertTriangle, Cloud
 } from 'lucide-react';
 import iThunderAPI, { systemAPI } from '../services/api';
 import PlatformStatusPanel from './system/PlatformStatusPanel';
+import CloudAIPanel from './system/CloudAIPanel';
 
 const METRICS_INTERVAL_MS = 5000;
 const LOGS_INTERVAL_MS = 15000;
@@ -18,6 +19,7 @@ const LOGS_INTERVAL_MS = 15000;
 const TABS = [
   { id: 'ai', label: 'Máy chủ AI', Icon: Cpu },
   { id: 'platform', label: 'AI Platform', Icon: Server },
+  { id: 'clouds', label: 'AI On-Clouds', Icon: Cloud },
 ];
 
 const formatUptime = (seconds) => {
@@ -116,7 +118,7 @@ function ModelsCard({ models, ollama }) {
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') === 'platform' ? 'platform' : 'ai';
+  const tab = ['platform', 'clouds'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'ai';
   const setTab = (id) => setSearchParams(id === 'ai' ? {} : { tab: id }, { replace: true });
   const [summaryData, setSummaryData] = useState({ totalFiles: 0, totalChunks: 0, totalCollections: 0 });
   // metrics: null (đang tải) | { runtimes, config_error, timestamp }; metricsError: thông điệp lỗi gần nhất
@@ -223,7 +225,7 @@ export default function AnalyticsDashboard() {
       </nav>
 
       <main className="flex-1 p-3 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-y-auto custom-scrollbar">
-        {tab === 'platform' ? <PlatformStatusPanel /> : (<>
+        {tab === 'clouds' ? <CloudAIPanel /> : tab === 'platform' ? <PlatformStatusPanel /> : (<>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400"><Layers size={20}/></div>

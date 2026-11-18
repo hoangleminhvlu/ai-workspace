@@ -1,5 +1,7 @@
 /**
- * Hàng nút dưới mỗi tin nhắn của khung AI Chat/Work: Sao chép (Prompt và câu trả lời) và Lưu DOCX (câu trả lời).
+ * Hàng nút dưới câu hỏi và câu trả lời của Trợ lý AI, DÙNG CHUNG cho khung AI Chat/Work và Trao đổi trực tuyến (@ai, hội thoại
+ * với Trợ lý AI): câu hỏi có "Sao chép"; câu trả lời có "Sao chép" (giữ định dạng khi dán vào Word) và "Lưu DOCX".
+ * Cùng nút, cùng nhãn, cùng cách sao chép và cùng API tạo DOCX ở mọi nơi.
  */
 import React, { useState } from 'react';
 import { Copy, Check, FileDown, Loader2, CircleAlert } from 'lucide-react';
@@ -52,11 +54,13 @@ const saveBlob = (blob, filename) => {
 
 /**
  * @param content    Nội dung Markdown của tin nhắn
- * @param isAsst     true: câu trả lời của iThunder AI (có thêm nút Lưu DOCX)
- * @param prompt     Prompt của người dùng ngay trước câu trả lời (đặt tên tập tin)
+ * @param isAsst     true: câu trả lời của Trợ lý AI (có thêm nút Lưu DOCX); false: câu hỏi (Prompt)
+ * @param prompt     Câu hỏi ngay trước câu trả lời (đặt tên tập tin DOCX)
  * @param getHtml    Hàm trả HTML đã dựng của tin nhắn (để dán vào Word giữ định dạng)
+ * @param onAccent   Câu hỏi nằm trong bong bóng nền xanh (của chính người dùng); false: bong bóng nền sáng (câu hỏi @ai của
+ *                   thành viên khác trong nhóm). Mặc định: câu hỏi nền xanh.
  */
-export default function MessageActions({ content, isAsst, prompt, getHtml }) {
+export default function MessageActions({ content, isAsst, prompt, getHtml, onAccent = !isAsst }) {
   const [copied, setCopied] = useState(null);     // null | 'ok' | 'fail'
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -83,12 +87,12 @@ export default function MessageActions({ content, isAsst, prompt, getHtml }) {
   };
 
   const button = `inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors disabled:opacity-60 ${
-    isAsst ? 'text-fg-muted hover:text-fg-strong hover:bg-hover' : 'text-blue-100 hover:text-white hover:bg-white/15'}`;
+    onAccent ? 'text-blue-100 hover:text-white hover:bg-white/15' : 'text-fg-muted hover:text-fg-strong hover:bg-hover'}`;
 
   return (
-    <div className={`mt-2 flex flex-wrap items-center gap-1 ${isAsst ? '' : 'justify-end'}`}>
+    <div className={`mt-2 flex flex-wrap items-center gap-1 ${onAccent ? 'justify-end' : ''}`}>
       <button type="button" onClick={copy} className={button}
-        title={isAsst ? 'Sao chép câu trả lời (dán vào Word vẫn giữ định dạng)' : 'Sao chép Prompt'}>
+        title={isAsst ? 'Sao chép câu trả lời (dán vào Word vẫn giữ định dạng)' : 'Sao chép câu hỏi (Prompt)'}>
         {copied === 'ok' ? <Check size={13} /> : copied === 'fail' ? <CircleAlert size={13} /> : <Copy size={13} />}
         <span aria-live="polite">{copied === 'ok' ? 'Đã sao chép' : copied === 'fail' ? 'Không sao chép được' : 'Sao chép'}</span>
       </button>

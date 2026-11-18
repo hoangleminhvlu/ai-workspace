@@ -29,7 +29,10 @@ const Attachment = ({ att, onDownload, onRemove }) => (
   </span>
 );
 
-function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, onDelete, onRetry, onDownload }) {
+// Câu hỏi gửi Trợ lý AI: tin nhắn có @ai, hoặc mọi tin nhắn của người dùng trong hội thoại riêng với Trợ lý AI
+const AI_MENTION = /(^|\s)@ai\b/i;
+
+function MessageBubble({ msg, mine, showSender, replied, seen, aiConversation, onReply, onEdit, onDelete, onRetry, onDownload }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(msg.content);
 
@@ -50,8 +53,11 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
   const assistant = msg.sender_type === 'assistant';
   const meta = msg.metadata || {};
   const bodyId = `comm-message-body-${msg.id}`;
-  // Câu trả lời của Trợ lý AI: Sao chép / Lưu DOCX như khung AI Chat/Work (tên tệp DOCX theo câu hỏi được trả lời)
+  // Cùng hàng nút với khung AI Chat/Work: câu trả lời của Trợ lý AI có Sao chép / Lưu DOCX (tên tệp DOCX theo câu hỏi được
+  // trả lời), câu hỏi gửi Trợ lý AI có Sao chép
   const answerActions = assistant && !msg.deleted && !!msg.content?.trim();
+  const questionActions = msg.sender_type === 'user' && !msg.deleted && !msg.pending && !msg.failed && !!msg.content?.trim()
+    && (aiConversation || AI_MENTION.test(msg.content));
   const saveEdit = () => {
     if (draft.trim() && draft.trim() !== msg.content) onEdit(msg, draft.trim());
     setEditing(false);
@@ -93,6 +99,10 @@ function MessageBubble({ msg, mine, showSender, replied, seen, onReply, onEdit, 
                 <div id={bodyId} className={`${PROSE} ${mine ? 'prose-invert' : 'dark:prose-invert'}`}>
                   <Markdown>{msg.content}</Markdown>
                 </div>
+              )}
+              {questionActions && (
+                <MessageActions content={msg.content} isAsst={false} onAccent={mine} prompt=""
+                  getHtml={() => document.getElementById(bodyId)?.innerHTML} />
               )}
               {answerActions && (
                 <MessageActions content={msg.content} isAsst prompt={replied && !replied.deleted ? String(replied.content || '').replace(/(^|\s)@ai\b/gi, ' ').trim() : ''}
@@ -288,7 +298,7 @@ export default function ChatPane({ conversation, me, thread, aiStream, typingNam
           return (
             <React.Fragment key={msg.client_msg_id && msg.pending ? msg.client_msg_id : msg.id}>
               {newDay && <div className="self-center text-[10px] font-semibold text-fg-subtle uppercase tracking-wider py-2">{formatDay(msg.created_at)}</div>}
-              <MessageBubble msg={msg} mine={mine} showSender={showSender}
+              <MessageBubble msg={msg} mine={mine} showSender={showSender} aiConversation={conversation.kind === 'assistant'}
                 replied={msg.reply_to ? byId.get(msg.reply_to) : null}
                 seen={peer && typeof msg.id === 'number' && peer.last_read_id >= msg.id}
                 onReply={setReplyTo} onEdit={onEdit} onDelete={onDelete} onRetry={onRetry} onDownload={onDownload} />
