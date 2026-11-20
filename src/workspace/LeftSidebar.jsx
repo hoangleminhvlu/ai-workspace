@@ -5,15 +5,16 @@ import {
 } from 'lucide-react';
 import { getStoragePermission } from '../services/api';
 import { STORE_GROUPS, storeGroup, storeLabel, storeDescription, ROLE_BADGE } from './constants';
-import { CLIENT_APP, gatewayHost } from '../auth/gatewayUtils';
+import { CLIENT_APP } from '../auth/gatewayUtils';
+import ZoomControl from '../components/ZoomControl';
 
-export default function LeftSidebar({ activeDomain, activeGateway, activeOther, handleClosePublicCloud, handleLogout, handleSelectDomain, identityPermissions, isLeftSidebarOpen, navigate, orgInfo, otherStores, personalStore, setShowPublicClouds, userData, workspaceOrgName }) {
+export default function LeftSidebar({ activeDomain, activeOther, handleClosePublicCloud, handleLogout, handleSelectDomain, identityPermissions, isLeftSidebarOpen, navigate, orgInfo, otherStores, personalStore, setShowPublicClouds, userData, workspaceOrgName }) {
   return (
     <aside className={`h-app bg-panel border-r border-line flex flex-col justify-between transition-all duration-300 shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 ${isLeftSidebarOpen ? 'w-64 opacity-100 visibility-visible' : 'w-0 opacity-0 pointer-events-none'}`}>
       {/* Dòng tiêu đề cao bằng thanh tiêu đề của cửa sổ AI Chat/Work (h-14). Tổ chức đang làm việc đã hiện ở cửa sổ AI Chat/Work;
           ở đây chỉ còn trong chú thích khi rê chuột, kèm cách chuyển sang Tổ chức khác. */}
       <div className="h-14 px-4 border-b border-line flex items-center gap-2 shrink-0"
-        title={`AI Workspace của ${workspaceOrgName}${orgInfo.orgId ? ` (${orgInfo.orgId})` : ''}.${CLIENT_APP && activeGateway ? ` AI Gateway: ${gatewayHost(activeGateway)}.` : ''} Cần làm việc với Tổ chức khác? ${CLIENT_APP ? 'Hãy Đăng xuất rồi đổi AI Gateway trên trang Đăng nhập.' : orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
+        title={`AI Workspace của ${workspaceOrgName}${orgInfo.orgId ? ` (${orgInfo.orgId})` : ''}. Cần làm việc với Tổ chức khác? ${CLIENT_APP ? 'Hãy Đăng xuất rồi đổi AI Gateway trên trang Đăng nhập.' : orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
         <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
       </div>
 
@@ -132,6 +133,8 @@ export default function LeftSidebar({ activeDomain, activeGateway, activeOther, 
       </div>
 
       <div className="px-4 py-2.5 border-t border-line bg-app shrink-0 flex flex-col gap-1.5">
+        {/* Ứng dụng Windows: phóng to / thu nhỏ AI Workspace (bản Web dùng chức năng của trình duyệt) */}
+        <ZoomControl className="pb-1.5 mb-0.5 border-b border-line" />
         {/* Họ tên (Mã ID) và vai trò: không cần tiêu đề, phân biệt bằng màu; rê chuột lên để xem đầy đủ */}
         <div className="flex items-center gap-1 min-w-0 text-[12px]"
           title={`${userData.userName}\nMã ID: ${userData.ownerId || '—'}\nVai trò: ${ROLE_BADGE[userData.userRole]?.label || userData.userRole} (${userData.userRole})`}>

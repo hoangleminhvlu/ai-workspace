@@ -117,6 +117,22 @@ export const gatewayAPI = {
     if (fallback && !list.includes(fallback)) list.push(fallback);
     return list;
   },
+  // Tổ chức của một AI Gateway (gợi ý trên trang Đăng nhập hiện tên Tổ chức, không hiện địa chỉ): { org_id, org_name } | null
+  describe: async (url) => {
+    const target = normalizeGatewayUrl(url).url;
+    if (!target) return null;
+    if (knownOrgs.has(target)) return knownOrgs.get(target);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      const res = await fetch(`${target}/api/org/info`, { signal: ctrl.signal });
+      const data = res.ok ? await res.json() : null;
+      if (!data?.org_id) return null;
+      const org = { org_id: String(data.org_id), org_name: String(data.org_name || "") };
+      knownOrgs.set(target, org);
+      return org;
+    } catch { return null; } finally { clearTimeout(timer); }
+  },
   // AI Gateway ứng viên trên trang Đăng nhập (chưa ghi nhớ)
   setCandidate: (url) => { candidateGateway = trimUrl(url); },
   // Xác thực PassCode thành công: ghi nhớ AI Gateway để lần sau mở ứng dụng vào thẳng
