@@ -835,6 +835,12 @@ export const identityAPI = {
   deactivateUser: (uidNumber) => identitySend("POST", `${uidPath(uidNumber)}/deactivate`, undefined, "vô hiệu hóa tài khoản"),
   setPassTime: (uidNumber, passtimeMs) => identitySend("PUT", `${uidPath(uidNumber)}/passtime`, { passtime_ms: passtimeMs }, "đặt PassTime"),
   resetFaceId: (uidNumber) => identitySend("DELETE", `${uidPath(uidNumber)}/faceid`, undefined, "xóa dữ liệu FaceID"),
+  // Ảnh FaceID trong hồ sơ: { photos: [{ id, image (data URL thu nhỏ), quality: good|low|unusable, issues, consistency,
+  //   face_px, sharpness, brightness, width, height }], photo_count, template_count, counts }
+  getUserFacePhotos: (uidNumber) => identityGet(`${uidPath(uidNumber)}/faceid/photos`, "truy vấn ảnh FaceID"),
+  deleteUserFacePhotos: (uidNumber, ids) => identitySend("POST", `${uidPath(uidNumber)}/faceid/photos/delete`, { ids }, "xóa ảnh FaceID"),
+  getMyFacePhotos: () => identityGet("/me/faceid/photos", "truy vấn ảnh FaceID của bạn"),
+  deleteMyFacePhotos: (ids) => identitySend("POST", "/me/faceid/photos/delete", { ids }, "xóa ảnh FaceID của bạn"),
   recycleUser: (uidNumber, confirmOwnerId) => identitySend("POST", `${uidPath(uidNumber)}/recycle`, { confirm_owner_id: confirmOwnerId }, "thu hồi tài khoản"),
 
   // --- Xác thực bổ sung: nhập lại PassCode của chính mình, nhận mã step-up có hiệu lực vài phút ---

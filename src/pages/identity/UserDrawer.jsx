@@ -15,6 +15,8 @@ const profileForm = (u) => ({
   mobile: u.mobile || '', telephone: u.telephone || '', postal_address: u.postal_address || '', description: u.description || '',
 });
 
+import FacePhotosPanel from './FacePhotosPanel';
+
 // Ngăn chi tiết một người dùng: hồ sơ, vai trò, email, bảo mật (PassCode/PassTime/FaceID) và thu hồi
 export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUnits = null, assignPolicy = null, onClose, onChanged }) {
   const [user, setUser] = useState(null);
@@ -194,6 +196,11 @@ export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUn
                   </>
                 )}
               </Section>
+
+              {can('identity.security.reset') && (
+                <FacePhotosPanel mode="admin" uid={uid}
+                  onChanged={() => identityAPI.getUser(uid).then(u => { if (u?.uid_number) { applyUser(u); onChanged(u, null); } }).catch(() => {})} />
+              )}
 
               {can('identity.users.write') && !isSelf && (
                 <Section title="Thu hồi tài khoản" icon={Archive}>

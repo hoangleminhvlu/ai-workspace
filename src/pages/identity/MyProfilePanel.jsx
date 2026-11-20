@@ -8,6 +8,7 @@ import { KeyRound, Mail, Plus, Save, Shield, Trash2, UserCog } from 'lucide-reac
 import { identityAPI } from '../../services/api';
 import { Button, Field, Notice, RoleChip, Section, inputCls } from './shared';
 import { formatDateTime, formatHours } from './utils';
+import FacePhotosPanel from './FacePhotosPanel';
 
 const SELF_KEYS = ['display_name', 'title', 'mobile', 'postal_address'];
 
@@ -100,6 +101,8 @@ export default function MyProfilePanel({ sharedVisitor }) {
         </dl>
         <p className="text-[10px] text-fg-subtle">Quên PassCode: dùng chức năng "Tôi quên PassCode" ở màn hình đăng nhập.</p>
       </Section>
+
+      {editable && <FacePhotosPanel mode="self" />}
     </div>
   );
 }
