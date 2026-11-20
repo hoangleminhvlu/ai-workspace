@@ -9,7 +9,7 @@ Cùng một mã nguồn React/Vite (`src/`) được đóng gói thành:
 | iOS | Capacitor 8 | `ios/` | Không: chỉ đồng bộ mã nguồn, build phải dùng macOS + Xcode |
 
 Mã định danh ứng dụng (Windows, Android, iOS; thử nghiệm): `vn.aitech.aiworkspace`.
-Phiên bản lấy theo `package.json` (hiện `6.11.16`): Tauri đọc trực tiếp; Android versionCode / iOS build ghi `61116`
+Phiên bản lấy theo `package.json` (hiện `6.11.21`): Tauri đọc trực tiếp; Android versionCode / iOS build ghi `61121`
 (cập nhật tay trong `android/app/build.gradle` và `ios/App/App.xcodeproj/project.pbxproj` khi đổi phiên bản).
 
 ## Kết nối AI Gateway
