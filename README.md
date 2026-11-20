@@ -9,7 +9,7 @@ AI Workspace (kho này) ──► AI Gateway (nginx) ──► AI Platform (Fast
    Web / Windows / Android      /api, /ws           Định danh, Kho Dữ liệu, Kho Tri thức, RAG, MCP, Trao đổi trực tuyến
 ```
 
-Phiên bản hiện tại: **6.11.16** (`package.json`). Tài liệu hướng dẫn sử dụng (TL1) và cài đặt, vận hành (TL2):
+Phiên bản hiện tại: **6.11.21** (`package.json`). Tài liệu hướng dẫn sử dụng (TL1) và cài đặt, vận hành (TL2):
 [hoangleminhvlu/ai-os-reference](https://github.com/hoangleminhvlu/ai-os-reference).
 
 ## Chức năng
