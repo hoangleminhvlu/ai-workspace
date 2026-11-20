@@ -9,6 +9,21 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes';
 import './index.css';
+import { initZoom } from './services/appZoom';
+import { isClientApp } from './services/api';
+
+// Ứng dụng Windows: áp dụng mức phóng to đã lưu, phím tắt Ctrl + / Ctrl - / Ctrl 0
+initZoom();
+
+// Ứng dụng máy trạm (Windows, Android, iOS): bỏ menu chuột phải mặc định của WebView (sao chép liên kết, tải lại...) ngoài các
+// ô nhập liệu; công cụ gỡ lỗi đã tắt ở bản phát hành (Tauri release, Capacitor webContentsDebuggingEnabled=false)
+if (isClientApp() && !window.location.port) {
+  window.addEventListener('contextmenu', (e) => {
+    const el = e.target;
+    if (el instanceof Element && el.closest('input, textarea, [contenteditable="true"]')) return;
+    e.preventDefault();
+  });
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

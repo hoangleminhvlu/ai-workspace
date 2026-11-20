@@ -9,6 +9,7 @@ import { ArrowLeft, Cable, Check, Copy, Pencil, Plug, PlugZap, Plus, Server, Tra
 import { mcpAPI } from '../services/api';
 import { Button, Field, Modal, Notice, Section, controlCls, inputCls } from './identity/shared';
 import { formatDateTime } from './identity/utils';
+import { CLIENT_APP } from '../auth/gatewayUtils';
 
 // Trang Tích hợp MCP (Model Context Protocol):
 // - Mọi thành viên: địa chỉ MCP Server /api/mcp của Gateway để kết nối Claude Desktop/Claude Code, công cụ AI được dùng trong Chat
@@ -68,6 +69,9 @@ function ConnectSection({ info }) {
             Claude Desktop, Claude Code hoặc agent khác hỗ trợ MCP có thể khai thác Kho Tri thức và Kho Dữ liệu theo đúng quyền của bạn
             (vai trò hiện tại). Giao thức <b>Streamable HTTP</b>, xác thực bằng mã truy cập (JWT) của phiên đăng nhập.
           </p>
+          {CLIENT_APP ? (
+            <Notice notice={{ type: 'info', text: 'Ứng dụng AI Workspace trên máy tính, điện thoại không hiển thị địa chỉ AI Gateway của Tổ chức. Để kết nối Claude Desktop, Claude Code, hãy mở trang Tích hợp MCP trên AI Workspace bản Web của Tổ chức, hoặc nhờ Quản trị viên cung cấp cấu hình.' }} />
+          ) : (<>
           <div className="flex items-center gap-2">
             <code className={`${controlCls} flex-1 font-mono truncate`}>{url}</code>
             <Button icon={copied === 'url' ? Check : Copy} onClick={() => copy('url', url)}>Sao chép</Button>
@@ -83,6 +87,7 @@ function ConnectSection({ info }) {
               <CodeBlock id="json" text={snippets.json} copied={copied} onCopy={copy} onCopyWithToken={withToken('json')} />
             </div>
           </div>
+          </>)}
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold text-fg-muted">Công cụ được cung cấp cho vai trò của bạn ({info.server.tools.length})</span>
             <ul className="grid gap-1.5 sm:grid-cols-2">

@@ -24,6 +24,18 @@ trên trang Đăng nhập. Origin của từng ứng dụng đã nằm trong `CL
 
 Quyền camera và micro (cho gọi thoại/video và Face ID) đã khai báo trong `AndroidManifest.xml` và `Info.plist`.
 
+**Không hiển thị địa chỉ AI Gateway** trong ứng dụng máy trạm: trang Đăng nhập chỉ hiện "Đã kết nối AI Gateway của Tổ chức
+(địa chỉ được ẩn)", loại kết nối và Tổ chức; gợi ý (đã dùng, `KNOWN_GATEWAYS`) hiện theo mã / tên Tổ chức đọc từ
+`/api/org/info`; ô nhập địa chỉ mới che ký tự (nút mắt để xem khi đang gõ), chặn sao chép; thông báo lỗi, chú thích thanh
+bên, trang Tích hợp MCP không có địa chỉ; menu chuột phải mặc định của WebView bị tắt ngoài ô nhập. Bản phát hành không có
+công cụ gỡ lỗi (Tauri release, `webContentsDebuggingEnabled: false`). Giới hạn: địa chỉ vẫn nằm trong bộ nhớ ứng dụng
+(localStorage) trên máy, trong `index.html` đóng gói (`DEFAULT_GATEWAY_URL`, `KNOWN_GATEWAYS`: không ghi IP nội bộ vào đây)
+và lộ qua lưu lượng mạng (DNS, kết nối TCP); bảo vệ thật sự là xác thực của AI Gateway, TLS, tường lửa / VPN.
+
+**Phóng to trên Windows**: nút **Cỡ hiển thị** (80% đến 200%) ở cuối thanh bên trái, phím Ctrl + / Ctrl - / Ctrl 0, Ctrl +
+lăn chuột (`src/services/appZoom.js`, `Webview.setZoom`, quyền `core:webview:allow-set-webview-zoom` trong
+`src-tauri/capabilities/default.json`). Mức phóng to được ghi nhớ trên máy. Bản Web dùng phóng to của trình duyệt.
+
 ## Lệnh
 
 ```bash

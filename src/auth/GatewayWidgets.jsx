@@ -1,10 +1,10 @@
 // Khối chọn AI Gateway và hiển thị Tổ chức trên các màn hình xác thực (tách từ App.jsx)
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Loader2, Building2, Server
+  Loader2, Building2, Server, Eye, EyeOff, Lock
 } from 'lucide-react';
 import { gatewayAPI, gatewayKind, normalizeGatewayUrl } from '../services/api';
-import { OTHER_ORG_HINT, ONPREM_ORG_HINT, CLIENT_ORG_HINT, GATEWAY_KIND_LABEL, gatewayHost, isSafeWorkspaceUrl } from './gatewayUtils';
+import { OTHER_ORG_HINT, ONPREM_ORG_HINT, CLIENT_ORG_HINT, GATEWAY_KIND_LABEL, isSafeWorkspaceUrl } from './gatewayUtils';
 
 // Chọn Tổ chức khác rồi chuyển sang AI Workspace của Tổ chức đó (AI Gateway chạy trên Internet)
 const OrgSwitcher = ({ organizations, onSwitch }) => {
@@ -28,7 +28,7 @@ const OrgSwitcher = ({ organizations, onSwitch }) => {
           Chuyển
         </button>
       </div>
-      {chosen && (
+      {chosen && !onSwitch && (
         <div className="text-[10px] text-slate-500 break-all leading-relaxed">
           {onSwitch ? 'Kết nối AI Gateway' : 'Mở AI Workspace'}: {chosen.workspace_url}{chosen.description ? ` · ${chosen.description}` : ''}
         </div>
@@ -78,14 +78,31 @@ export const GatewayOrgCard = ({ org, onRetry, onSwitch }) => {
 
 // Ứng dụng máy trạm: chọn AI Gateway — On-Premise (http, IP/tên máy nội bộ) hoặc On-Clouds (https qua Internet).
 // Kết nối = đọc /api/org/info để người dùng thấy đúng Tổ chức trước khi nhập PassCode; chỉ ghi nhớ sau khi xác thực thành công.
-// Cha đặt key={current}: đổi AI Gateway thì khối này khởi tạo lại (thu gọn, ô nhập mang địa chỉ mới).
+// Cha đặt key={current}: đổi AI Gateway thì khối này khởi tạo lại.
+// Không hiển thị địa chỉ AI Gateway (đã kết nối, đã ghi nhớ, khai báo sẵn): chỉ hiện Tổ chức và loại kết nối; ô nhập địa
+// chỉ mới mặc định che ký tự. Ứng dụng vẫn dùng địa chỉ để gọi AI Gateway nhưng người dùng không xem, không sao chép được.
+const suggestionLabel = (g, i) => (g.org_name ? `${g.org_name}${g.org_id ? ` (${g.org_id})` : ''}` : g.org_id || `AI Gateway ${i + 1}`);
+
 export const GatewayPicker = ({ current, status, onConnect, disabled }) => {
   const [editing, setEditing] = useState(!current);
-  const [text, setText] = useState(current || '');
+  const [text, setText] = useState('');
+  const [reveal, setReveal] = useState(false);
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState(() => gatewayAPI.suggestions());
   const open = editing || !current || status === 'error' || status === 'none';
   const kind = current ? gatewayKind(current) : '';
+
+  // AI Gateway khai báo sẵn chưa biết Tổ chức: hỏi /api/org/info để gợi ý theo tên Tổ chức thay vì địa chỉ
+  useEffect(() => {
+    let alive = true;
+    suggestions.filter(g => !g.org_id).forEach(g => {
+      gatewayAPI.describe(g.url).then(org => {
+        if (alive && org) setSuggestions(list => list.map(x => (x.url === g.url ? { ...x, ...org } : x)));
+      });
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const connect = (value) => {
     const res = normalizeGatewayUrl(value);
@@ -104,9 +121,11 @@ export const GatewayPicker = ({ current, status, onConnect, disabled }) => {
         {kind && <span className="px-1.5 py-0.5 rounded border border-slate-500/60 text-slate-300 text-[9px]">{GATEWAY_KIND_LABEL[kind]}</span>}
       </div>
       {!open ? (
-        <div className="mt-1 flex items-center gap-2">
-          <span className="flex-1 min-w-0 truncate font-mono text-[11px] text-slate-200" title={current}>{current}</span>
-          <button type="button" disabled={disabled} onClick={() => { setText(current); setEditing(true); }}
+        <div className="mt-1 flex items-center gap-2 select-none">
+          <span className="flex-1 min-w-0 truncate text-[11px] text-slate-200 flex items-center gap-1.5">
+            <Lock size={11} className="shrink-0 text-slate-400" /> Đã kết nối AI Gateway của Tổ chức (địa chỉ được ẩn)
+          </span>
+          <button type="button" disabled={disabled} onClick={() => { setText(''); setReveal(false); setEditing(true); }}
             className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-cyan-500/50 text-cyan-300 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors">
             Đổi
           </button>
@@ -114,26 +133,33 @@ export const GatewayPicker = ({ current, status, onConnect, disabled }) => {
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); connect(text); }} className="mt-1 flex flex-col gap-2">
           <div className="flex gap-2">
-            <input type="text" list="gateway-suggestions" value={text} onChange={e => { setText(e.target.value); setError(''); }}
-              placeholder="https://aigate.to-chuc.vn · http://192.168.1.10:8088" aria-label="Địa chỉ AI Gateway"
-              autoComplete="url" inputMode="url" spellCheck={false} autoCapitalize="off"
-              className="flex-1 min-w-0 bg-slate-900 border border-slate-600 text-slate-100 text-xs font-mono rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-400" />
+            <div className="relative flex-1 min-w-0">
+              {/* Che ký tự bằng CSS (không dùng type=password để trình duyệt không đề nghị lưu như mật khẩu) */}
+              <input type="text" value={text} onChange={e => { setText(e.target.value); setError(''); }}
+                placeholder="Địa chỉ do Quản trị viên Tổ chức cung cấp" aria-label="Địa chỉ AI Gateway"
+                autoComplete="off" inputMode="url" spellCheck={false} autoCapitalize="off"
+                onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}
+                className={`w-full bg-slate-900 border border-slate-600 text-slate-100 text-xs font-mono rounded-lg pl-2 pr-7 py-1.5 focus:outline-none focus:border-cyan-400 ${reveal ? '' : '[-webkit-text-security:disc]'}`} />
+              <button type="button" onClick={() => setReveal(v => !v)} aria-label={reveal ? 'Che địa chỉ' : 'Hiện địa chỉ đang nhập'}
+                title={reveal ? 'Che địa chỉ' : 'Hiện địa chỉ đang nhập'}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                {reveal ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
             <button type="submit" disabled={disabled || status === 'loading' || !text.trim()}
               className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white disabled:bg-slate-700 disabled:text-slate-400 transition-colors">
               {status === 'loading' ? <Loader2 size={13} className="animate-spin" /> : 'Kết nối'}
             </button>
           </div>
-          <datalist id="gateway-suggestions">
-            {suggestions.map(g => <option key={g.url} value={g.url}>{g.org_name ? `${g.org_name} (${g.org_id})` : ''}</option>)}
-          </datalist>
           {suggestions.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {suggestions.slice(0, 6).map(g => (
-                <span key={g.url} className="inline-flex items-center rounded-full border border-slate-600 text-[10px] text-slate-300 overflow-hidden">
-                  <button type="button" disabled={disabled} onClick={() => connect(g.url)} title={g.org_name ? `${g.org_name} · ${g.url}` : g.url}
-                    className="px-2 py-0.5 hover:bg-slate-700 hover:text-white">{g.org_id || gatewayHost(g.url)}</button>
+              {suggestions.slice(0, 6).map((g, i) => (
+                <span key={g.url} className="inline-flex items-center rounded-full border border-slate-600 text-[10px] text-slate-300 overflow-hidden select-none">
+                  <button type="button" disabled={disabled} onClick={() => connect(g.url)}
+                    title={`Kết nối AI Gateway ${suggestionLabel(g, i)}${gatewayKind(g.url) ? ` · ${GATEWAY_KIND_LABEL[gatewayKind(g.url)]}` : ''}`}
+                    className="px-2 py-0.5 hover:bg-slate-700 hover:text-white">{g.org_id || suggestionLabel(g, i)}</button>
                   {g.last_used && (
-                    <button type="button" onClick={() => forget(g.url)} aria-label={`Quên AI Gateway ${g.url}`} title="Quên AI Gateway này"
+                    <button type="button" onClick={() => forget(g.url)} aria-label={`Quên AI Gateway ${suggestionLabel(g, i)}`} title="Quên AI Gateway này"
                       className="px-1.5 py-0.5 border-l border-slate-600 hover:bg-red-900/50 hover:text-red-200">×</button>
                   )}
                 </span>
@@ -143,7 +169,7 @@ export const GatewayPicker = ({ current, status, onConnect, disabled }) => {
           {error && <div role="alert" className="text-[11px] text-red-300 leading-relaxed">{error}</div>}
           <p className="text-[10px] text-slate-500 leading-relaxed">
             On-Premise: <span className="font-mono">http://IP-nội-bộ:cổng</span> · On-Clouds: <span className="font-mono">https://tên-miền</span>.
-            Địa chỉ chỉ được ghi nhớ sau khi xác thực PassCode thành công.
+            Địa chỉ chỉ được ghi nhớ sau khi xác thực PassCode thành công và không hiển thị lại.
           </p>
           {editing && current && status === 'ok' && (
             <button type="button" onClick={() => { setEditing(false); setError(''); }} className="self-end text-[11px] text-slate-400 hover:text-slate-200 underline">

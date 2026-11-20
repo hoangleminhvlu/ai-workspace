@@ -16,7 +16,10 @@
          chỉ khi muốn CỐ ĐỊNH một AI Gateway ở tên miền khác, vd. "https://aigate.is-tech.vn" / "wss://aigate.is-tech.vn".
          Ứng dụng máy trạm (http://localhost trên máy Desktop, ứng dụng Desktop/Mobile) chọn AI Gateway trên trang Đăng nhập:
            DEFAULT_GATEWAY_URL: AI Gateway thử kết nối khi người dùng chưa chọn (sau chính địa chỉ đang mở)
-           KNOWN_GATEWAYS     : các AI Gateway gợi ý sẵn (On-Clouds https hoặc On-Premise http://IP-nội-bộ:cổng) -->
+           KNOWN_GATEWAYS     : các AI Gateway gợi ý sẵn (giao diện chỉ hiện tên Tổ chức, không hiện địa chỉ).
+           Hai giá trị này được đóng gói nguyên văn vào ứng dụng Windows, Android, iOS: ai giải nén bộ cài cũng đọc được.
+           Chỉ ghi AI Gateway On-Clouds công khai; KHÔNG ghi địa chỉ IP / tên máy nội bộ của AI Gateway On-Premise
+           (người dùng nhập địa chỉ do Quản trị viên cung cấp một lần, ứng dụng ghi nhớ và không hiển thị lại). -->
     <script>
       window.TARA_CONFIG = {
         API_GATEWAY_URL: "",

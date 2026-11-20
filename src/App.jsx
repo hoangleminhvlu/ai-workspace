@@ -620,7 +620,8 @@ export default function App() {
     } catch {
       setIsLoading(false);
       const gateway = getGatewayConfig().httpUrl;
-      setErrorMessage(`Không thể kết nối API xác thực của AI Gateway${gateway ? ` ${gateway}` : ''}.`);
+      // Ứng dụng máy trạm không hiển thị địa chỉ AI Gateway của Tổ chức
+      setErrorMessage(`Không thể kết nối API xác thực của AI Gateway${gateway && !CLIENT_APP ? ` ${gateway}` : ''}.`);
     }
   };
 
@@ -1170,7 +1171,7 @@ export default function App() {
 
       {/* 1. THANH SIDEBAR TRÁI: QUẢN LÝ KHO TRI THỨC */}
       <LeftSidebar
-        activeDomain={activeDomain} activeGateway={activeGateway} activeOther={activeOther}
+        activeDomain={activeDomain} activeOther={activeOther}
         handleClosePublicCloud={handleClosePublicCloud} handleLogout={handleLogout} handleSelectDomain={handleSelectDomain}
         identityPermissions={identityPermissions} isLeftSidebarOpen={isLeftSidebarOpen} navigate={navigate} orgInfo={orgInfo}
         otherStores={otherStores} personalStore={personalStore} setShowPublicClouds={setShowPublicClouds} userData={userData}
