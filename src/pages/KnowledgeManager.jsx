@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import iThunderAPI, { getStoragePermission } from '../services/api';
 import useLatestCallback from '../hooks/useLatestCallback';
+import CloudLinksPanel from './knowledge/CloudLinksPanel';
 
 // Thông tin người dùng của phiên hiện tại (do App.jsx lưu khi đăng nhập); vai trò chỉ dùng để hiển thị,
 // quyền thật do Backend kiểm tra qua JWT
@@ -47,6 +48,8 @@ export default function KnowledgeManager() {
     iThunderAPI.getOrgInfo().then(org => setServerNode(org?.status === 'SUCCESS' ? org.location || '' : '')).catch(() => {});
   });
   useEffect(() => { loadOnMount(); }, [loadOnMount]);
+  // Kết nối đám mây vừa đồng bộ xong: làm mới số tệp, số đoạn của Kho đang chọn
+  const refreshAfterCloudSync = useLatestCallback(() => { if (activeCollection) fetchCollections(activeCollection.storage_key); });
 
   const fetchCollections = async (keepStorageKey = null) => {
     setLoading(true);
@@ -254,6 +257,11 @@ export default function KnowledgeManager() {
                 </button>
               </div>
             </div>
+          )}
+
+          {activeCollection && canManage && (
+            <CloudLinksPanel key={activeCollection.storage_key} storage={activeCollection.storage_key}
+              storeName={activeCollection.display_name} onSynced={refreshAfterCloudSync} />
           )}
 
           {actionMessage.text && (
