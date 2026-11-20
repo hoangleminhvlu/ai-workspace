@@ -38,8 +38,13 @@ export const ROLE_BADGE = {
   visitor: { label: 'Khách',         cls: 'bg-zinc-400 text-white dark:bg-zinc-600' },
 };
 
-// Số khung hình FaceID không khớp/không thấy khuôn mặt liên tiếp trước khi tạm dừng quét
+// Số lần FaceID thất bại (không khớp, làm lại kiểm tra người thật) trước khi tạm dừng quét; gợi ý về khung hình không tính
 export const MAX_FACE_ATTEMPTS = 8;
+// FaceID có kiểm tra người thật: gửi khung hình vuông FACE_FRAME_SIZE px mỗi FACE_FRAME_INTERVAL_MS (chỉ khi khung trước
+// đã có kết quả), dừng sau FACE_SCAN_TIMEOUT_MS nếu chưa xác thực xong
+export const FACE_FRAME_SIZE = 320;
+export const FACE_FRAME_INTERVAL_MS = 350;
+export const FACE_SCAN_TIMEOUT_MS = 90000;
 
 // Chính sách lưu lịch sử hội thoại khi chưa biết (chưa nạp /api/auth/me hoặc Backend chưa có API này)
 export const UNKNOWN_HISTORY_POLICY = { enabled: null, roles: [] };

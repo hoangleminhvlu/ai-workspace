@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, notifyAuthChanged, gatewayAPI } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 import useLatestCallback from './hooks/useLatestCallback';
-import { GUEST_USER, newThreadId, PERSONAL_STORE, MAX_FACE_ATTEMPTS, UNKNOWN_HISTORY_POLICY, SLASH_COMMANDS, formatDateTime } from './workspace/constants';
+import { GUEST_USER, newThreadId, PERSONAL_STORE, MAX_FACE_ATTEMPTS, FACE_SCAN_TIMEOUT_MS, FACE_FRAME_INTERVAL_MS, FACE_FRAME_SIZE, UNKNOWN_HISTORY_POLICY, SLASH_COMMANDS, formatDateTime } from './workspace/constants';
 import { ORG_LOADING, CLIENT_APP } from './auth/gatewayUtils';
 import LeftSidebar from './workspace/LeftSidebar';
 import ChatHeader from './workspace/ChatHeader';
@@ -252,6 +252,10 @@ export default function App() {
   const faceFailCountRef = useRef(0);      // Số khung hình thất bại liên tiếp
   const faceSucceededRef = useRef(false);  // Lượt quét hiện tại đã xác thực thành công
   const [faceScanStopped, setFaceScanStopped] = useState(false);
+  // Kiểm tra người thật (liveness): bước hiện tại do AI Platform phát và tự kiểm tra; gợi ý về khung hình (không thấy mặt...)
+  const [liveness, setLiveness] = useState(null);     // { challenge, step, steps, message }
+  const [faceHint, setFaceHint] = useState('');
+  const faceScanStartRef = useRef(0);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const promptInputRef = useRef(null);
@@ -408,7 +412,15 @@ export default function App() {
         setIsLoading(false);
         faceAwaitingRef.current = false; // Kết quả khung hình trước đã về: cho phép gửi khung tiếp theo
 
-        if (res.status === "REQUIRE_FACEID") {
+        if (res.status === "LIVENESS") {
+          // Bước kế tiếp của kiểm tra người thật: không phải lỗi
+          setLiveness({ challenge: res.challenge, step: res.step, steps: res.steps, message: res.message });
+          setFaceHint('');
+          setErrorMessage('');
+        } else if (res.status === "HINT") {
+          // Khung hình chưa dùng được (không thấy mặt, quá xa, thiếu sáng...): nhắc người dùng, không tính là lần thất bại
+          setFaceHint(res.message);
+        } else if (res.status === "REQUIRE_FACEID") {
           setStatusMessage(res.message);
           setViewState('FACEID');
           setTimeout(() => startWebcamHardware(), 500);
@@ -418,6 +430,8 @@ export default function App() {
           faceSucceededRef.current = true;
           setStatusMessage(res.message);
           setErrorMessage('');
+          setFaceHint('');
+          setLiveness(null);
           stopWebcamHardware();
           faceFailCountRef.current = 0;
           gatewayAPI.commit();   // ứng dụng máy trạm: ghi nhớ AI Gateway vừa xác thực thành công
@@ -443,11 +457,15 @@ export default function App() {
           setViewState('LOGIN');
         } else if (res.status === "BAD_IMAGE" || res.status === "FAIL" || res.status === "ERROR") {
           setErrorMessage(res.message);
+          setFaceHint('');
           faceFailCountRef.current += 1;
+          // Phiên liveness làm lại từ đầu (hết giờ, khuôn mặt thay đổi đột ngột): bỏ hướng dẫn của bước cũ
+          if (res.challenge === "FRONTAL") setLiveness(null);
 
           // Lỗi PassCode/hệ thống: dừng ngay. Lỗi tạm thời (không thấy mặt, ảnh mờ, chưa khớp): tiếp tục quét đến giới hạn
           const fatal = res.status === "ERROR" || res.code === "ACCOUNT_SUSPENDED" || res.code === "JOIN_REQUIRED" || /passcode/i.test(res.message || "");
-          if (fatal || faceFailCountRef.current >= MAX_FACE_ATTEMPTS) {
+          const timedOut = Date.now() - faceScanStartRef.current > FACE_SCAN_TIMEOUT_MS;
+          if (fatal || faceFailCountRef.current >= MAX_FACE_ATTEMPTS || timedOut) {
             stopWebcamHardware();
             setFaceScanStopped(true);
           }
@@ -474,7 +492,7 @@ export default function App() {
 
   const startWebcamHardware = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 480, facingMode: 'user' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -482,20 +500,34 @@ export default function App() {
         setFaceScanStopped(false);
         faceAwaitingRef.current = false;
         faceSucceededRef.current = false;
+        faceScanStartRef.current = Date.now();
+        setLiveness(null);
+        setFaceHint('');
         if (faceIntervalRef.current) clearInterval(faceIntervalRef.current);
         faceIntervalRef.current = setInterval(() => {
-          if (!videoRef.current || !canvasRef.current || !wsRef.current) return;
+          const video = videoRef.current;
+          if (!video || !canvasRef.current || !wsRef.current || !video.videoWidth) return;
           if (wsRef.current.readyState !== WebSocket.OPEN) return;
+          if (Date.now() - faceScanStartRef.current > FACE_SCAN_TIMEOUT_MS) {
+            stopWebcamHardware();
+            setFaceScanStopped(true);
+            setErrorMessage("Đã hết thời gian quét FaceID. Hãy bấm Quét lại và làm theo hướng dẫn.");
+            return;
+          }
           // Backend xử lý tuần tự: chỉ gửi khung mới khi kết quả khung trước đã về, tránh dồn hàng đợi
           if (faceAwaitingRef.current) return;
           faceAwaitingRef.current = true;
+          // Cắt vùng vuông giữa khung hình (giống khung tròn trên màn hình), không kéo giãn ảnh 4:3 thành 1:1:
+          // khuôn mặt bị méo làm giảm độ khớp và sai tỷ lệ hình học dùng cho kiểm tra người thật
+          const side = Math.min(video.videoWidth, video.videoHeight);
+          const sx = (video.videoWidth - side) / 2, sy = (video.videoHeight - side) / 2;
           const context = canvasRef.current.getContext('2d');
-          canvasRef.current.width = 320;
-          canvasRef.current.height = 320;
-          context.drawImage(videoRef.current, 0, 0, 320, 320);
-          const base64Frame = canvasRef.current.toDataURL('image/jpeg', 0.85).replace(/^data:image\/[a-z]+;base64,/, "");
-          wsRef.current.send(JSON.stringify({ action: "verify_faceid", passcode: passcode, domain: activeDomain, clientIp: clientIp, image: base64Frame }));
-        }, 1200);
+          canvasRef.current.width = FACE_FRAME_SIZE;
+          canvasRef.current.height = FACE_FRAME_SIZE;
+          context.drawImage(video, sx, sy, side, side, 0, 0, FACE_FRAME_SIZE, FACE_FRAME_SIZE);
+          const base64Frame = canvasRef.current.toDataURL('image/jpeg', 0.9).replace(/^data:image\/[a-z]+;base64,/, "");
+          wsRef.current.send(JSON.stringify({ action: "verify_faceid", passcode: passcode, domain: activeDomain, image: base64Frame, liveness: 1 }));
+        }, FACE_FRAME_INTERVAL_MS);
       }
     } catch { setErrorMessage("Không thể kích hoạt Webcam máy trạm. Vui lòng cấp quyền."); }
   };
@@ -512,6 +544,8 @@ export default function App() {
   const retryFaceScan = () => {
     faceFailCountRef.current = 0;
     setErrorMessage('');
+    setFaceHint('');
+    setLiveness(null);
     setFaceScanStopped(false);
     initWebSocketConnection(() => setTimeout(() => startWebcamHardware(), 300));
   };
@@ -1119,8 +1153,8 @@ export default function App() {
   if (viewState === 'FACEID') {
     return (
       <FaceIdScreen
-        canvasRef={canvasRef} errorMessage={errorMessage} faceScanStopped={faceScanStopped} isFaceProcessing={isFaceProcessing}
-        orgInfo={orgInfo} retryFaceScan={retryFaceScan} setErrorMessage={setErrorMessage} setFaceScanStopped={setFaceScanStopped}
+        canvasRef={canvasRef} errorMessage={errorMessage} faceHint={faceHint} faceScanStopped={faceScanStopped}
+        isFaceProcessing={isFaceProcessing} liveness={liveness} orgInfo={orgInfo} retryFaceScan={retryFaceScan} setErrorMessage={setErrorMessage} setFaceScanStopped={setFaceScanStopped}
         setViewState={setViewState} statusMessage={statusMessage} stopWebcamHardware={stopWebcamHardware} videoRef={videoRef} />
     );
   }
