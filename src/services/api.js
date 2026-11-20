@@ -1041,6 +1041,26 @@ export const cloudAIAPI = {
   testKey: (provider, apiKey = "") => stepUpSend(`${cloudPathOf(provider)}/test`, "POST", apiKey ? { api_key: apiKey } : {}, "kiểm tra khóa API"),
 };
 
+/**
+ * Kết nối Kho Dữ liệu với kho đám mây (OneDrive, Google Drive, Dropbox, S3, SFTP, WebDAV) - /api/storage-links.
+ * Người có quyền quản trị Kho (Kho Cá nhân: chính người dùng). Thông tin đăng nhập chỉ đi một chiều (AI Platform không trả
+ * lại, chỉ có secret_fields = tên các trường đã lưu). Tạo / sửa / xóa cần xác nhận PassCode (HTTP 428 => stepUpHandler).
+ */
+export const storageLinksAPI = {
+  // { available, detail, providers: [{ id, label, path_help, oauth, one_of, fields: [{ name, label, kind, required,
+  //   choices, default, help }] }], schedules, subdir, max_per_store, max_file_mb, max_total_mb, step_up_minutes }
+  providers: () => stepUpSend("/api/storage-links/providers", "GET", undefined, "truy vấn dịch vụ đám mây"),
+  list: (storage) => stepUpSend(`/api/storage-links?storage=${encodeURIComponent(storage)}`, "GET", undefined, "truy vấn kết nối đám mây"),
+  // body: { storage, name, provider, options, secrets, remote_path, mode: mirror|copy, auto_index, schedule_minutes }
+  create: (body) => stepUpSend("/api/storage-links", "POST", body, "tạo kết nối đám mây"),
+  // patch: các trường như create (secrets bỏ trống: giữ nguyên), enabled
+  update: (id, patch) => stepUpSend(`/api/storage-links/${encodeURIComponent(id)}`, "PATCH", patch, "cập nhật kết nối đám mây"),
+  remove: (id) => stepUpSend(`/api/storage-links/${encodeURIComponent(id)}`, "DELETE", undefined, "xóa kết nối đám mây"),
+  // { storage, path, link_id } hoặc { storage, path, provider, options, secrets } => { path, entries: [{ name, is_dir, size }] }
+  browse: (body) => stepUpSend("/api/storage-links/browse", "POST", body, "xem thư mục đám mây"),
+  sync: (id) => stepUpSend(`/api/storage-links/${encodeURIComponent(id)}/sync`, "POST", {}, "đồng bộ kết nối đám mây"),
+};
+
 export const systemAPI = {
   // { runtimes: [{ id, name, ollama_url, sources, ollama: { ok, version }, models: { ok, installed, loaded }, monitored,
   //   host: { ok, errors, hostname, uptime_seconds, cpu, memory, disks, gpus } | null }], config_error }
