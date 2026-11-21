@@ -1,0 +1,66 @@
+iThunder AI Workspace {{VERSION}} cho Windows 11 - BẢN DÙNG THỬ
+Ứng dụng máy trạm của nền tảng iThunder AI OS
+Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng gói ngày {{DATE}}
+=====================================================================================
+
+1. TRONG GÓI NÀY
+   {{WIN_FILE}}
+       Bộ cài cho máy tính Windows 11 (64-bit)
+   {{TL1_FILE}}
+       Tài liệu "Hướng dẫn sử dụng AI Workspace" (TL1), bản {{TL1_VERSION}}
+   SHA256SUMS.txt
+       Mã kiểm tra tính toàn vẹn của bộ cài và tài liệu
+   HUONG_DAN_CAI_DAT.txt
+       Tài liệu này
+
+2. BẠN CẦN CHUẨN BỊ
+   - Máy tính Windows 11 64-bit có camera (để quét khuôn mặt FaceID khi hệ thống yêu cầu).
+   - Địa chỉ AI Gateway của Tổ chức do Quản trị viên của Tổ chức cung cấp: qua Internet (https://...)
+     hoặc trong mạng nội bộ (http://IP-nội-bộ:cổng).
+   - Tài khoản và PassCode 6 chữ số do Tổ chức cấp (nhận qua Email).
+
+3. CÀI ĐẶT
+   Bước 1. Giải nén tệp ZIP, mở tệp {{WIN_FILE}}.
+   Bước 2. Bản dùng thử chưa được ký số nên Windows có thể hiện "Windows protected your PC"
+           (Windows đã bảo vệ PC của bạn): bấm "More info" (Thêm thông tin), rồi "Run anyway" (Vẫn chạy).
+           Chỉ làm vậy với tệp nhận từ Trung tâm AI-TECH hoặc Quản trị viên của Tổ chức.
+   Bước 3. Làm theo trình cài đặt. Ứng dụng cài cho tài khoản Windows của bạn, không cần quyền quản trị.
+           Nếu máy thiếu Microsoft Edge WebView2 (hiếm gặp trên Windows 11), bộ cài tự tải về (cần Internet).
+           Đã cài bản trước: cài đè lên, không cần gỡ; AI Gateway đã ghi nhớ được giữ nguyên.
+   Bước 4. Mở "iThunder AI Workspace" từ menu Start.
+
+4. LẦN ĐẦU SỬ DỤNG
+   Bước 1. Ở mục AI GATEWAY trên màn hình đăng nhập, nhập địa chỉ AI Gateway (hoặc bấm tên Tổ chức trong
+           danh sách gợi ý) rồi bấm "Kết nối".
+   Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
+   Bước 3. Nhập PassCode, bấm "Xác thực Định danh".
+   Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, rồi làm theo hướng dẫn kiểm tra người thật
+           hiện trên màn hình (quay mặt sang trái, sang phải, nhắm mắt rồi mở), cuối cùng nhìn thẳng lại.
+   - Ứng dụng không hiển thị địa chỉ AI Gateway sau khi đã kết nối; địa chỉ được ghi nhớ sau lần đăng nhập
+     thành công đầu tiên. Bấm "Đổi" để kết nối AI Gateway khác.
+   - AI Gateway trong mạng nội bộ (On-Premise): máy của bạn phải nối vào mạng của Tổ chức.
+   - Nếu thấy "AI Gateway không phản hồi sau 8 giây": kiểm tra mạng, địa chỉ, rồi bấm "Thử lại".
+   Cách dùng các chức năng: xem tài liệu {{TL1_FILE}} (TL1), mục 2 (bắt đầu sử dụng) đến mục 9.
+
+5. PHÓNG TO, THU NHỎ MÀN HÌNH
+   Nút "Cỡ hiển thị" ở cuối thanh bên trái (80% đến 200%; bấm vào số phần trăm để về 100%), hoặc phím
+   Ctrl + / Ctrl - / Ctrl 0, hoặc giữ Ctrl và lăn chuột. Mức đã chọn được ghi nhớ cho lần mở sau.
+
+6. KIỂM TRA TỆP CÀI ĐẶT (khuyến nghị khi nhận tệp qua mạng)
+   Mở PowerShell trong thư mục chứa tệp và chạy:
+       Get-FileHash "{{WIN_FILE}}" -Algorithm SHA256
+   Kết quả phải trùng với dòng tương ứng trong SHA256SUMS.txt.
+
+7. GỠ CÀI ĐẶT
+   Settings (Cài đặt) > Apps (Ứng dụng) > Installed apps > iThunder AI Workspace > Uninstall.
+
+8. GIỚI HẠN CỦA BẢN DÙNG THỬ
+   - Bộ cài chưa được ký số (vì vậy có cảnh báo ở mục 3).
+   - Đã kiểm tra: cài đặt, mở ứng dụng, kết nối AI Gateway, hiển thị Tổ chức, phóng to. Đăng nhập bằng
+     PassCode, quét khuôn mặt có kiểm tra người thật, gọi thoại và video đang được kiểm thử thêm.
+   - Dữ liệu làm việc nằm trên máy chủ của Tổ chức, không nằm trong ứng dụng.
+
+9. GÓP Ý VÀ BÁO LỖI
+   Gửi về Trung tâm AI-TECH, Trường Đại học Văn Lang: ai-tech.center@vlu.edu.vn
+   Xin ghi rõ: phiên bản ({{VERSION}}), phiên bản Windows, việc đang làm, thông báo lỗi, kèm ảnh chụp
+   màn hình. KHÔNG gửi PassCode.
