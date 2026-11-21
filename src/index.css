@@ -66,6 +66,10 @@
   --text-subtle: #64748b;
 }
 
+/* Biểu đồ AI Tokens: On-Premise (xanh) và On-Clouds (cam), đã kiểm tra tương phản và mù màu trên nền sáng #ffffff, tối #0a121e */
+:root { --series-onpremise: #2a78d6; --series-onclouds: #eb6834; }
+.dark { --series-onpremise: #3987e5; --series-onclouds: #d95926; }
+
 /* Đăng ký biến màu thành utility Tailwind: bg-app, bg-panel, text-fg, border-line... */
 @theme inline {
   --color-app: var(--bg-workspace);

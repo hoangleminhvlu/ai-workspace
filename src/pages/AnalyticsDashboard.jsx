@@ -7,20 +7,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Cpu, HardDrive, Database, Activity, Server,
-  Layers, FileText, Clock, AlertTriangle, Cloud
+  Layers, FileText, Clock, AlertTriangle, Cloud, Coins
 } from 'lucide-react';
 import iThunderAPI, { systemAPI } from '../services/api';
 import PlatformStatusPanel from './system/PlatformStatusPanel';
 import CloudAIPanel from './system/CloudAIPanel';
+import AiUsagePanel from './system/AiUsagePanel';
 
 const METRICS_INTERVAL_MS = 5000;
 const LOGS_INTERVAL_MS = 15000;
 
+// roles: vai trò thấy tab (Backend vẫn kiểm tra quyền ở từng API)
 const TABS = [
-  { id: 'ai', label: 'Máy chủ AI', Icon: Cpu },
-  { id: 'platform', label: 'AI Platform', Icon: Server },
-  { id: 'clouds', label: 'AI On-Clouds', Icon: Cloud },
+  { id: 'ai', label: 'Máy chủ AI', Icon: Cpu, roles: ['admin', 'manager'] },
+  { id: 'platform', label: 'AI Platform', Icon: Server, roles: ['admin', 'manager'] },
+  { id: 'usage', label: 'AI Tokens', Icon: Coins, roles: ['admin', 'manager'] },
+  { id: 'clouds', label: 'AI On-Clouds', Icon: Cloud, roles: ['admin'] },
 ];
+const sessionRole = () => { try { return JSON.parse(localStorage.getItem('tara_user') || 'null')?.userRole || ''; } catch { return ''; } };
 
 const formatUptime = (seconds) => {
   if (!seconds && seconds !== 0) return '—';
@@ -118,7 +122,9 @@ function ModelsCard({ models, ollama }) {
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = ['platform', 'clouds'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'ai';
+  const role = sessionRole();
+  const tabs = TABS.filter(t => t.roles.includes(role));
+  const tab = tabs.some(t => t.id === searchParams.get('tab')) && searchParams.get('tab') !== 'ai' ? searchParams.get('tab') : 'ai';
   const setTab = (id) => setSearchParams(id === 'ai' ? {} : { tab: id }, { replace: true });
   const [summaryData, setSummaryData] = useState({ totalFiles: 0, totalChunks: 0, totalCollections: 0 });
   // metrics: null (đang tải) | { runtimes, config_error, timestamp }; metricsError: thông điệp lỗi gần nhất
@@ -215,7 +221,7 @@ export default function AnalyticsDashboard() {
 
       {/* Hai nhóm giám sát: Máy chủ AI (Ollama, GPU, nhật ký) và các dịch vụ nền của AI Platform; ?tab=platform mở thẳng tab sau */}
       <nav className="border-b border-line bg-panel px-3 sm:px-6 flex gap-1 shrink-0 overflow-x-auto" role="tablist">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors ${tab === t.id
               ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-fg-muted hover:text-fg-strong'}`}>
@@ -225,7 +231,7 @@ export default function AnalyticsDashboard() {
       </nav>
 
       <main className="flex-1 p-3 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-y-auto custom-scrollbar">
-        {tab === 'clouds' ? <CloudAIPanel /> : tab === 'platform' ? <PlatformStatusPanel /> : (<>
+        {tab === 'clouds' ? <CloudAIPanel /> : tab === 'platform' ? <PlatformStatusPanel /> : tab === 'usage' ? <AiUsagePanel /> : (<>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-panel border border-line rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4 shadow-sm min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400"><Layers size={20}/></div>
