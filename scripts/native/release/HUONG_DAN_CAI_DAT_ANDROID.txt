@@ -1,0 +1,71 @@
+iThunder AI Workspace {{VERSION}} cho Android - BẢN DÙNG THỬ
+Ứng dụng máy trạm của nền tảng iThunder AI OS
+Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng gói ngày {{DATE}}
+=====================================================================================
+
+1. TRONG GÓI NÀY
+   {{APK_FILE}}
+       Tệp cài đặt cho điện thoại, máy tính bảng Android
+   {{TL1_FILE}}
+       Tài liệu "Hướng dẫn sử dụng AI Workspace" (TL1), bản {{TL1_VERSION}}
+   SHA256SUMS.txt
+       Mã kiểm tra tính toàn vẹn của tệp cài đặt và tài liệu
+   HUONG_DAN_CAI_DAT.txt
+       Tài liệu này
+
+2. BẠN CẦN CHUẨN BỊ
+   - Điện thoại hoặc máy tính bảng Android 7.0 trở lên, có camera trước (để quét khuôn mặt FaceID).
+   - Tài khoản và PassCode 6 chữ số do Tổ chức cấp (nhận qua Email).
+   - Nếu Tổ chức của bạn không có trong danh sách "Chọn Tổ chức": địa chỉ AI Gateway do Quản trị viên
+     của Tổ chức cung cấp.
+
+3. CÀI ĐẶT
+   Bước 1. Chép tệp {{APK_FILE}} vào điện thoại (Zalo, Email, cáp USB...) rồi mở tệp.
+   Bước 2. Nếu Android hỏi có cho phép cài ứng dụng không rõ nguồn gốc ("Install unknown apps"),
+           hãy cho phép đối với ứng dụng bạn dùng để mở tệp (Zalo, trình quản lý tệp, trình duyệt).
+   Bước 3. Bấm "Cài đặt". Nếu Google Play Protect cảnh báo ứng dụng chưa được xác minh,
+           chọn "Thông tin chi tiết" rồi "Vẫn cài đặt".
+   Bước 4. Mở ứng dụng "iThunder AI Workspace". Khi quét khuôn mặt hoặc gọi thoại, video,
+           ứng dụng hỏi quyền dùng camera, micro: hãy cho phép.
+           Đã cài bản trước: cài đè lên, không cần gỡ; Tổ chức đã ghi nhớ được giữ nguyên.
+
+4. LẦN ĐẦU SỬ DỤNG
+   Bước 1. Lần đầu mở, ứng dụng tự kết nối AI Workspace của AI-TECH Center. Nếu bạn thuộc Tổ chức khác, chọn
+           Tổ chức trong ô "Chọn Tổ chức" rồi bấm "Chuyển". Tổ chức của bạn không có trong danh sách: chọn
+           "Tổ chức khác: nhập địa chỉ..." và nhập địa chỉ do Quản trị viên của Tổ chức cung cấp.
+   Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
+   Bước 3. Nhập PassCode, bấm "Xác thực Định danh".
+   Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, rồi làm theo hướng dẫn kiểm tra người thật
+           hiện trên màn hình (quay mặt sang trái, sang phải, nhắm mắt rồi mở), cuối cùng nhìn thẳng lại.
+   - Tổ chức đã chọn được ghi nhớ sau lần đăng nhập thành công đầu tiên; ứng dụng không hiển thị địa chỉ máy chủ.
+   - AI Gateway trong mạng nội bộ (On-Premise): máy của bạn phải nối vào mạng của Tổ chức.
+   - AI Gateway qua Internet phải dùng https://; ứng dụng từ chối địa chỉ http:// đi qua Internet.
+   - Nếu thấy "AI Gateway không phản hồi sau 8 giây": kiểm tra mạng, địa chỉ, rồi bấm "Thử lại".
+   Cách dùng các chức năng: xem tài liệu {{TL1_FILE}} (TL1), mục 2 (bắt đầu sử dụng) đến mục 9.
+
+5. KIỂM TRA TỆP CÀI ĐẶT (khuyến nghị khi nhận tệp qua mạng)
+   Tệp Android được ký bằng chứng thư của iThunder AI Workspace, dấu vân tay SHA-256:
+       {{APK_CERT}}
+   Mã SHA-256 của tệp cài đặt phải trùng với dòng tương ứng trong SHA256SUMS.txt.
+
+6. GỠ CÀI ĐẶT
+   Chạm và giữ biểu tượng ứng dụng, chọn "Gỡ cài đặt".
+
+7. GIỚI HẠN CỦA BẢN DÙNG THỬ
+   - Ứng dụng chưa phát hành trên Google Play (vì vậy có cảnh báo Play Protect ở mục 3).
+   - Đã kiểm tra: cài đặt, mở ứng dụng, kết nối AI Gateway, hiển thị Tổ chức. Đăng nhập bằng PassCode,
+     quét khuôn mặt có kiểm tra người thật, gọi thoại và video trên ứng dụng đang được kiểm thử thêm.
+   - Chưa có bản cho iPhone, iPad. Trên các máy này, hãy dùng AI Workspace qua trình duyệt web.
+   - Dữ liệu làm việc nằm trên máy chủ của Tổ chức, không nằm trong ứng dụng.
+
+8. GÓP Ý, BÁO LỖI, ĐẶT HÀNG PHÁT TRIỂN VÀ TÍCH HỢP
+   Đây là bản dùng thử; mọi phản hồi giúp hoàn thiện AI Workspace cho Tổ chức của bạn.
+   - Wiki: https://github.com/hoangleminhvlu/ai-workspace/wiki
+     Câu hỏi thường gặp, mẫu báo lỗi, mẫu đặt hàng phát triển và tích hợp.
+   - Email: ai-tech.center@vlu.edu.vn (Trung tâm AI-TECH, Trường Đại học Văn Lang)
+     Góp ý, báo lỗi; đặt hàng phát triển chức năng mới; tích hợp với phần mềm nghiệp vụ của Tổ chức
+     (LMS, ERP, CRM, EMR...); triển khai AI On-Premise.
+   - GitHub Issues (công khai): https://github.com/hoangleminhvlu/ai-workspace/issues
+   Khi báo lỗi, xin ghi rõ: phiên bản ({{VERSION}}), thiết bị và hệ điều hành, việc đang làm, thông báo lỗi,
+   kèm ảnh chụp màn hình. KHÔNG gửi PassCode, mã truy cập hay địa chỉ AI Gateway nội bộ của Tổ chức.
+   Hướng dẫn chi tiết: tài liệu "Hướng dẫn sử dụng AI Workspace" (TL1), mục 2.8.
