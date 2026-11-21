@@ -26,10 +26,11 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // Giám sát Hệ thống chỉ dành cho vai trò admin (Backend vẫn kiểm tra SYSTEM_MONITOR_ROLES ở từng API)
-const AdminRoute = ({ children }) => {
+// Giám sát Hệ thống: admin và manager (Quản trị Đơn vị); tab AI On-Clouds chỉ admin
+const MonitorRoute = ({ children }) => {
   let role = '';
-  try { role = JSON.parse(localStorage.getItem("tara_user") || "null")?.userRole || ''; } catch { /* phiên hỏng: coi như không phải admin */ }
-  return role === 'admin' ? <ProtectedRoute>{children}</ProtectedRoute> : <Navigate to="/" replace />;
+  try { role = JSON.parse(localStorage.getItem("tara_user") || "null")?.userRole || ''; } catch { /* phiên hỏng */ }
+  return ['admin', 'manager'].includes(role) ? <ProtectedRoute>{children}</ProtectedRoute> : <Navigate to="/" replace />;
 };
 
 export default function AppRoutes() {
@@ -53,9 +54,9 @@ export default function AppRoutes() {
       <Route 
         path="/analytics" 
         element={
-          <AdminRoute>
+          <MonitorRoute>
             <AnalyticsDashboard />
-          </AdminRoute>
+          </MonitorRoute>
         } 
       />
 

@@ -37,8 +37,8 @@ export default function LeftSidebar({ activeDomain, activeOther, handleClosePubl
               <History size={13} className="text-fg-subtle" />
               <span>Lịch sử Làm việc</span>
             </button>
-            {/* Chỉ hiện với vai trò admin; Backend vẫn kiểm tra SYSTEM_MONITOR_ROLES ở từng API */}
-            {userData.userRole === 'admin' && (
+            {/* admin, manager (Quản trị Đơn vị); Backend vẫn kiểm tra quyền ở từng API (SYSTEM_MONITOR_ROLES, AI_USAGE_ROLES) */}
+            {['admin', 'manager'].includes(userData.userRole) && (
               <button onClick={() => navigate('/analytics')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium hover:bg-hover text-fg-muted transition-all">
                 <Activity size={13} className="text-fg-subtle" />
                 <span>Giám sát Hệ thống</span>

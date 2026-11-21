@@ -1032,6 +1032,8 @@ export const commAPI = {
  * NVIDIA DCGM Exporter / node_exporter / DGX Dashboard;
  * HTTP 403 khi vai trò không được xem.
  */
+const usageQuery = (params) => new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")).toString();
+
 const systemGet = async (path, label) => {
   try {
     const response = await fetch(`${gatewayUrl()}/api/system${path}`, {
@@ -1093,7 +1095,24 @@ export const systemAPI = {
 
   // Trạng thái AI Platform: { platform, services: [{ id, name, role, state, target, latency_ms, detail, items? }],
   // warnings: [{ level, message }], summary }. refresh=true: bỏ qua bộ đệm của Backend (nút "Kiểm tra lại")
-  getStatus: (refresh = false) => systemGet(`/status${refresh ? "?refresh=true" : ""}`, "kiểm tra trạng thái AI Platform")
+  getStatus: (refresh = false) => systemGet(`/status${refresh ? "?refresh=true" : ""}`, "kiểm tra trạng thái AI Platform"),
+
+  // Thống kê AI Tokens (admin, manager): params { granularity: day|month, start, end (YYYY-MM-DD), location, channel, user_id }
+  // => { totals, locations, channels, series: [{ period, onpremise, onclouds, total_tokens, requests }], models, users, scope }
+  getAiUsage: (params = {}) => systemGet(`/ai-usage?${usageQuery(params)}`, "thống kê AI Tokens"),
+  // Tải CSV chi tiết (kỳ, người dùng, mô hình, nơi chạy): trả { blob, filename } hoặc { status: "FAIL", detail }
+  downloadAiUsageCsv: async (params = {}) => {
+    try {
+      const response = await fetch(`${gatewayUrl()}/api/system/ai-usage.csv?${usageQuery(params)}`, { headers: getAuthHeaders() });
+      if (!response.ok) return await parseResponse(response);
+      const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "ai_tokens.csv";
+      return { status: "SUCCESS", blob: await response.blob(), filename: name };
+    } catch {
+      return { status: "FAIL", detail: "Không thể kết nối AI Gateway. Hãy thử lại!" };
+    }
+  },
+  // Nạp số liệu cũ từ lịch sử câu trả lời đã lưu (chỉ admin)
+  backfillAiUsage: () => stepUpSend("/api/system/ai-usage/backfill", "POST", {}, "nạp số liệu AI Tokens cũ")
 };
 
 /**
