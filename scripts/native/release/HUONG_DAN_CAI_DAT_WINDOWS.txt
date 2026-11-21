@@ -30,14 +30,14 @@ Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng g
    Bước 4. Mở "iThunder AI Workspace" từ menu Start.
 
 4. LẦN ĐẦU SỬ DỤNG
-   Bước 1. Ở mục AI GATEWAY trên màn hình đăng nhập, nhập địa chỉ AI Gateway (hoặc bấm tên Tổ chức trong
-           danh sách gợi ý) rồi bấm "Kết nối".
+   Bước 1. Lần đầu mở, ứng dụng tự kết nối AI Workspace của AI-TECH Center. Nếu bạn thuộc Tổ chức khác, chọn
+           Tổ chức trong ô "Chọn Tổ chức" rồi bấm "Chuyển". Tổ chức của bạn không có trong danh sách: chọn
+           "Tổ chức khác: nhập địa chỉ..." và nhập địa chỉ do Quản trị viên của Tổ chức cung cấp.
    Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
    Bước 3. Nhập PassCode, bấm "Xác thực Định danh".
    Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, rồi làm theo hướng dẫn kiểm tra người thật
            hiện trên màn hình (quay mặt sang trái, sang phải, nhắm mắt rồi mở), cuối cùng nhìn thẳng lại.
-   - Ứng dụng không hiển thị địa chỉ AI Gateway sau khi đã kết nối; địa chỉ được ghi nhớ sau lần đăng nhập
-     thành công đầu tiên. Bấm "Đổi" để kết nối AI Gateway khác.
+   - Tổ chức đã chọn được ghi nhớ sau lần đăng nhập thành công đầu tiên; ứng dụng không hiển thị địa chỉ máy chủ.
    - AI Gateway trong mạng nội bộ (On-Premise): máy của bạn phải nối vào mạng của Tổ chức.
    - Nếu thấy "AI Gateway không phản hồi sau 8 giây": kiểm tra mạng, địa chỉ, rồi bấm "Thử lại".
    Cách dùng các chức năng: xem tài liệu {{TL1_FILE}} (TL1), mục 2 (bắt đầu sử dụng) đến mục 9.
