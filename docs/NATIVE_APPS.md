@@ -85,6 +85,11 @@ Workspace (TL1, PDF, đặt tên theo số phiên bản đọc từ trang bìa),
 `~/ai-reference/aios-docs/iThunder_AI_OS_TL1_Huong_dan_su_dung_AI_Workspace.pdf`). `--copy-windows` chép tệp ZIP vào
 thư mục Downloads của Windows.
 
+**Chỉ Android, kèm tài liệu TL1** (`bash scripts/native/release.sh --android [--copy-windows]`): build và ký APK bản phát
+hành (cùng các kiểm tra khóa ký, `webContentsDebuggingEnabled` như trên) rồi tạo `release/<pb>-Android/` và
+`release/iThunder-AI-Workspace-<pb>-Android.zip` gồm APK, TL1 (PDF), `HUONG_DAN_CAI_DAT.txt` (mẫu
+`scripts/native/release/HUONG_DAN_CAI_DAT_ANDROID.txt`, có dấu vân tay chứng thư ký) và `SHA256SUMS.txt`.
+
 ## Toolchain trong WSL (thư mục nhà, không cần sudo)
 
 - Rust stable + target `x86_64-pc-windows-msvc`, `cargo-xwin` (`~/.cargo`). Lần build đầu, cargo-xwin tải
