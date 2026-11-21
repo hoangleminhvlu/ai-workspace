@@ -4,9 +4,11 @@ import {
   ShieldCheck, Loader2, CircleAlert, UserPlus, CornerDownLeft
 } from 'lucide-react';
 import { CLIENT_APP } from './gatewayUtils';
-import { GatewayOrgCard, GatewayPicker } from './GatewayWidgets';
+import { useState } from 'react';
+import { GatewayAddressForm, GatewayOrgCard } from './GatewayWidgets';
 
 export default function LoginScreen({ acceptJoinOffer, activeGateway, connectGateway, errorMessage, handlePasscodeSubmit, isLoading, joinOffer, loadOrgInfo, orgInfo, passcode, setErrorMessage, setJoinOffer, setPasscode, setViewState }) {
+  const [manualGateway, setManualGateway] = useState(false);   // ứng dụng máy trạm: đang nhập địa chỉ AI Gateway khác
   return (
     <div
       className="w-screen h-app bg-[#090d16] flex text-slate-200 select-none antialiased bg-cover bg-center bg-no-repeat"
@@ -37,8 +39,16 @@ export default function LoginScreen({ acceptJoinOffer, activeGateway, connectGat
             <h1 className="text-2xl font-extrabold tracking-tight text-white mt-2">iThunder AI Gateway</h1>
 
             {/* TỔ CHỨC SỞ HỮU AI GATEWAY: người dùng biết mình đang đăng nhập vào AI Workspace của Tổ chức nào */}
-            {CLIENT_APP && <GatewayPicker key={activeGateway} current={activeGateway} status={orgInfo.status} onConnect={connectGateway} disabled={isLoading} />}
-            <GatewayOrgCard org={orgInfo} onRetry={loadOrgInfo} onSwitch={CLIENT_APP ? connectGateway : undefined} />
+            {/* Ứng dụng máy trạm: mặc định là AI Gateway của Tổ chức khai báo sẵn (DEFAULT_GATEWAY_URL) hoặc đã ghi nhớ; đổi Tổ
+                chức ngay trong khung Tổ chức. Ô nhập địa chỉ chỉ hiện khi chọn "Tổ chức khác" hoặc AI Gateway không phản hồi. */}
+            <GatewayOrgCard org={orgInfo} onRetry={loadOrgInfo} client={CLIENT_APP} disabled={isLoading}
+              onSwitch={CLIENT_APP ? (url) => { setManualGateway(false); connectGateway(url); } : undefined}
+              onManual={() => setManualGateway(true)} />
+            {CLIENT_APP && (manualGateway || orgInfo.status === 'error' || orgInfo.status === 'none') && (
+              <GatewayAddressForm key={activeGateway} status={orgInfo.status} disabled={isLoading}
+                onConnect={(url) => { setManualGateway(false); connectGateway(url); }}
+                onCancel={orgInfo.status === 'ok' ? () => setManualGateway(false) : undefined} />
+            )}
           </div>
 
           {joinOffer ? (

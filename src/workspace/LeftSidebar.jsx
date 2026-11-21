@@ -14,7 +14,7 @@ export default function LeftSidebar({ activeDomain, activeOther, handleClosePubl
       {/* Dòng tiêu đề cao bằng thanh tiêu đề của cửa sổ AI Chat/Work (h-14). Tổ chức đang làm việc đã hiện ở cửa sổ AI Chat/Work;
           ở đây chỉ còn trong chú thích khi rê chuột, kèm cách chuyển sang Tổ chức khác. */}
       <div className="h-14 px-4 border-b border-line flex items-center gap-2 shrink-0"
-        title={`AI Workspace của ${workspaceOrgName}${orgInfo.orgId ? ` (${orgInfo.orgId})` : ''}. Cần làm việc với Tổ chức khác? ${CLIENT_APP ? 'Hãy Đăng xuất rồi đổi AI Gateway trên trang Đăng nhập.' : orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
+        title={`AI Workspace của ${workspaceOrgName}${orgInfo.orgId ? ` (${orgInfo.orgId})` : ''}. Cần làm việc với Tổ chức khác? ${CLIENT_APP ? 'Hãy Đăng xuất rồi chọn Tổ chức khác trên trang Đăng nhập.' : orgInfo.switchEnabled ? 'Hãy Đăng xuất rồi chọn Tổ chức ngay trên trang Đăng nhập.' : 'Hãy Đăng xuất rồi truy cập AI Gateway của Tổ chức đó.'}`}>
         <h2 className="text-sm font-bold text-fg-strong tracking-wide truncate">iThunder AI Workspace</h2>
       </div>
 
