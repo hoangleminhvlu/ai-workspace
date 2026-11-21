@@ -86,6 +86,16 @@ Build ngay trong WSL bằng các lệnh `npm run win:*`, `android:*`, `ios:sync`
 giả lập, khóa ký, bộ phát hành dùng thử): [`docs/NATIVE_APPS.md`](docs/NATIVE_APPS.md). Đây là bản thử nghiệm: bộ cài Windows
 chưa ký số, iOS phải build trên macOS.
 
+## Tải về, góp ý, đặt hàng phát triển
+
+- Bộ cài Windows 11 (bản dùng thử): [Releases](https://github.com/hoangleminhvlu/ai-workspace/releases/latest).
+- [Wiki](https://github.com/hoangleminhvlu/ai-workspace/wiki): câu hỏi thường gặp, mẫu báo lỗi, mẫu đặt hàng phát triển và
+  tích hợp.
+- Email **ai-tech.center@vlu.edu.vn** (Trung tâm AI-TECH, Trường Đại học Văn Lang): góp ý, báo lỗi, đặt hàng phát triển
+  chức năng, tích hợp với phần mềm nghiệp vụ (LMS, ERP, CRM, EMR...), triển khai AI On-Premise.
+- [Issues](https://github.com/hoangleminhvlu/ai-workspace/issues): báo lỗi công khai. Không đăng PassCode, mã truy cập hay
+  địa chỉ AI Gateway nội bộ của Tổ chức.
+
 ## Giấy phép
 
 GNU General Public License v3.0, xem [`LICENSE`](LICENSE).
