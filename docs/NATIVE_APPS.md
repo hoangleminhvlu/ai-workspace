@@ -75,6 +75,14 @@ cả hai tệp ở nơi an toàn (két mật khẩu, ổ mã hóa). Dấu vân t
 
 Sau mỗi lần sửa giao diện, Android và iOS cần `npm run build` rồi `npx cap sync` (các lệnh trên đã gộp sẵn).
 
+
+**Chỉ Windows, kèm tài liệu TL1** (`bash scripts/native/release.sh --windows [--copy-windows]`): build bộ cài Windows rồi tạo
+`release/<pb>-Windows/` và `release/iThunder-AI-Workspace-<pb>-Windows.zip` gồm bộ cài, tài liệu Hướng dẫn sử dụng AI
+Workspace (TL1, PDF, đặt tên theo số phiên bản đọc từ trang bìa), `HUONG_DAN_CAI_DAT.txt` (mẫu
+`scripts/native/release/HUONG_DAN_CAI_DAT_WINDOWS.txt`) và `SHA256SUMS.txt`. TL1 lấy từ biến `TL1_PDF` (mặc định
+`~/ai-reference/aios-docs/iThunder_AI_OS_TL1_Huong_dan_su_dung_AI_Workspace.pdf`). `--copy-windows` chép tệp ZIP vào
+thư mục Downloads của Windows.
+
 ## Toolchain trong WSL (thư mục nhà, không cần sudo)
 
 - Rust stable + target `x86_64-pc-windows-msvc`, `cargo-xwin` (`~/.cargo`). Lần build đầu, cargo-xwin tải
