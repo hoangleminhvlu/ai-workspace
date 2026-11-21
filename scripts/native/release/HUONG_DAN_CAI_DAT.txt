@@ -70,8 +70,14 @@ Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng g
    - Chưa có bản cho iPhone, iPad. Trên các máy này, hãy dùng AI Workspace qua trình duyệt web.
    - Bản dùng thử có thể thay đổi; dữ liệu làm việc nằm trên máy chủ của Tổ chức, không nằm trong ứng dụng.
 
-9. GÓP Ý VÀ BÁO LỖI
-   Gửi về Trung tâm AI-TECH, Trường Đại học Văn Lang: ai-tech.center@vlu.edu.vn
-   Xin ghi rõ: phiên bản ({{VERSION}}), thiết bị và hệ điều hành, việc đang làm, thông báo lỗi,
-   kèm ảnh chụp màn hình. KHÔNG gửi PassCode.
+9. GÓP Ý, BÁO LỖI, ĐẶT HÀNG PHÁT TRIỂN VÀ TÍCH HỢP
+   Đây là bản dùng thử; mọi phản hồi giúp hoàn thiện AI Workspace cho Tổ chức của bạn.
+   - Wiki: https://github.com/hoangleminhvlu/ai-workspace/wiki
+     Câu hỏi thường gặp, mẫu báo lỗi, mẫu đặt hàng phát triển và tích hợp.
+   - Email: ai-tech.center@vlu.edu.vn (Trung tâm AI-TECH, Trường Đại học Văn Lang)
+     Góp ý, báo lỗi; đặt hàng phát triển chức năng mới; tích hợp với phần mềm nghiệp vụ của Tổ chức
+     (LMS, ERP, CRM, EMR...); triển khai AI On-Premise.
+   - GitHub Issues (công khai): https://github.com/hoangleminhvlu/ai-workspace/issues
+   Khi báo lỗi, xin ghi rõ: phiên bản ({{VERSION}}), thiết bị và hệ điều hành, việc đang làm, thông báo lỗi,
+   kèm ảnh chụp màn hình. KHÔNG gửi PassCode, mã truy cập hay địa chỉ AI Gateway nội bộ của Tổ chức.
    Hướng dẫn chi tiết: tài liệu "Hướng dẫn sử dụng AI Workspace" (TL1), mục 2.8.
