@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "ai-workspace"
-version = "6.11.21"
+version = "6.11.23"
 dependencies = [
  "log",
  "serde",
