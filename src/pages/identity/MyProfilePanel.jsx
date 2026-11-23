@@ -9,6 +9,7 @@ import { identityAPI } from '../../services/api';
 import { Button, Field, Notice, RoleChip, Section, inputCls } from './shared';
 import { formatDateTime, formatHours } from './utils';
 import FacePhotosPanel from './FacePhotosPanel';
+import FaceDevicesPanel from './FaceDevicesPanel';
 
 const SELF_KEYS = ['display_name', 'title', 'mobile', 'postal_address'];
 
@@ -103,6 +104,7 @@ export default function MyProfilePanel({ sharedVisitor }) {
       </Section>
 
       {editable && <FacePhotosPanel mode="self" />}
+      {editable && <FaceDevicesPanel mode="self" />}
     </div>
   );
 }
