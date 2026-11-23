@@ -1,7 +1,7 @@
 {
   "name": "ai-workspace",
   "private": true,
-  "version": "6.11.21",
+  "version": "6.11.23",
   "type": "module",
   "scripts": {
     "dev": "vite",
