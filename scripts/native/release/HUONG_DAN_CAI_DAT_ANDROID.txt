@@ -36,7 +36,8 @@ Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng g
    Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
    Bước 3. Nhập PassCode, bấm "Xác thực Định danh".
    Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, giữ khuôn mặt trong khung tròn ở nơi đủ sáng
-           cho đến khi khớp. Chỉ bản Web mới yêu cầu kiểm tra người thật (quay mặt, nhắm mắt).
+           cho đến khi khớp. Nếu màn hình yêu cầu quay mặt, nhắm mắt (bản Web, hoặc AI Gateway của Tổ chức chưa
+           cập nhật), hãy làm theo hướng dẫn; khi đó hệ thống không hỏi mã xác nhận.
            Lần quét đầu tiên trên thiết bị mới: nhập mã xác nhận 8 số gửi tới Email đăng ký của bạn (hiệu lực 10
            phút), sau đó quét lại. Xem, thu hồi thiết bị ở "Hồ sơ của tôi", mục Thiết bị FaceID.
    - Tổ chức đã chọn được ghi nhớ sau lần đăng nhập thành công đầu tiên; ứng dụng không hiển thị địa chỉ máy chủ.
