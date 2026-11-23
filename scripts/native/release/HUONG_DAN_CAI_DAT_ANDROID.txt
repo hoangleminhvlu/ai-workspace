@@ -35,8 +35,10 @@ Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng g
            "Tổ chức khác: nhập địa chỉ..." và nhập địa chỉ do Quản trị viên của Tổ chức cung cấp.
    Bước 2. Kiểm tra khung "AI WORKSPACE CỦA TỔ CHỨC" hiện đúng tên Tổ chức của bạn.
    Bước 3. Nhập PassCode, bấm "Xác thực Định danh".
-   Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, rồi làm theo hướng dẫn kiểm tra người thật
-           hiện trên màn hình (quay mặt sang trái, sang phải, nhắm mắt rồi mở), cuối cùng nhìn thẳng lại.
+   Bước 4. Khi quét khuôn mặt (FaceID): nhìn thẳng vào camera, giữ khuôn mặt trong khung tròn ở nơi đủ sáng
+           cho đến khi khớp. Chỉ bản Web mới yêu cầu kiểm tra người thật (quay mặt, nhắm mắt).
+           Lần quét đầu tiên trên thiết bị mới: nhập mã xác nhận 8 số gửi tới Email đăng ký của bạn (hiệu lực 10
+           phút), sau đó quét lại. Xem, thu hồi thiết bị ở "Hồ sơ của tôi", mục Thiết bị FaceID.
    - Tổ chức đã chọn được ghi nhớ sau lần đăng nhập thành công đầu tiên; ứng dụng không hiển thị địa chỉ máy chủ.
    - AI Gateway trong mạng nội bộ (On-Premise): máy của bạn phải nối vào mạng của Tổ chức.
    - AI Gateway qua Internet phải dùng https://; ứng dụng từ chối địa chỉ http:// đi qua Internet.
@@ -54,7 +56,7 @@ Trung tâm AI-TECH (AI-TECH Center), Trường Đại học Văn Lang - đóng g
 7. GIỚI HẠN CỦA BẢN DÙNG THỬ
    - Ứng dụng chưa phát hành trên Google Play (vì vậy có cảnh báo Play Protect ở mục 3).
    - Đã kiểm tra: cài đặt, mở ứng dụng, kết nối AI Gateway, hiển thị Tổ chức. Đăng nhập bằng PassCode,
-     quét khuôn mặt có kiểm tra người thật, gọi thoại và video trên ứng dụng đang được kiểm thử thêm.
+     quét khuôn mặt, gọi thoại và video trên ứng dụng đang được kiểm thử thêm.
    - Chưa có bản cho iPhone, iPad. Trên các máy này, hãy dùng AI Workspace qua trình duyệt web.
    - Dữ liệu làm việc nằm trên máy chủ của Tổ chức, không nằm trong ứng dụng.
 

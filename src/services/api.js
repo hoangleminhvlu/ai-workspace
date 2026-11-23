@@ -36,6 +36,13 @@ export const isClientApp = () => {
 // npm run win:dev) là Vite dev server, vẫn chuyển /api về Backend như trên trình duyệt.
 const isNativeShell = () => !window.location.port
   && (window.location.hostname === "tauri.localhost" || Boolean(window.Capacitor?.isNativePlatform?.()));
+// Loại máy trạm gửi kèm khi quét FaceID: 'desktop' (Tauri) | 'mobile' (Capacitor) | 'web' (trình duyệt, kể cả http://localhost).
+// AI Platform đối chiếu với Origin: ứng dụng Desktop / Mobile có khóa thiết bị quét FaceID không kiểm tra người thật, Web luôn kiểm tra.
+export const clientKind = () => {
+  if (window.Capacitor?.isNativePlatform?.()) return "mobile";
+  if (window.location.protocol === "tauri:" || window.location.hostname === "tauri.localhost") return "desktop";
+  return "web";
+};
 // Chính địa chỉ đang mở có thể là AI Gateway (Web sau nginx, dev proxy của Vite)
 const pageMayBeGateway = () => /^https?:$/.test(window.location.protocol) && !isNativeShell();
 
@@ -855,6 +862,10 @@ export const identityAPI = {
   //   face_px, sharpness, brightness, width, height }], photo_count, template_count, counts }
   getUserFacePhotos: (uidNumber) => identityGet(`${uidPath(uidNumber)}/faceid/photos`, "truy vấn ảnh FaceID"),
   deleteUserFacePhotos: (uidNumber, ids) => identitySend("POST", `${uidPath(uidNumber)}/faceid/photos/delete`, { ids }, "xóa ảnh FaceID"),
+  getUserFaceDevices: (uidNumber) => identityGet(`${uidPath(uidNumber)}/faceid/devices`, "truy vấn thiết bị FaceID"),
+  setUserFaceDevice: (uidNumber, id, revoked) => identitySend("POST", `${uidPath(uidNumber)}/faceid/devices/${encodeURIComponent(id)}`, { revoked }, "cập nhật thiết bị FaceID"),
+  getMyFaceDevices: () => identityGet("/me/faceid/devices", "truy vấn thiết bị FaceID của bạn"),
+  setMyFaceDevice: (id, revoked) => identitySend("POST", `/me/faceid/devices/${encodeURIComponent(id)}`, { revoked }, "cập nhật thiết bị FaceID của bạn"),
   getMyFacePhotos: () => identityGet("/me/faceid/photos", "truy vấn ảnh FaceID của bạn"),
   deleteMyFacePhotos: (ids) => identitySend("POST", "/me/faceid/photos/delete", { ids }, "xóa ảnh FaceID của bạn"),
   recycleUser: (uidNumber, confirmOwnerId) => identitySend("POST", `${uidPath(uidNumber)}/recycle`, { confirm_owner_id: confirmOwnerId }, "thu hồi tài khoản"),

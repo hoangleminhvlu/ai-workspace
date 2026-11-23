@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, notifyAuthChanged, gatewayAPI } from './services/api';
+import iThunderAPI, { handleUnauthorized, describeError, getStoragePermission, identityAPI, openCloud, closeCloud, takePendingDomain, takePendingThread, getGatewayConfig, notifyAuthChanged, clientKind, gatewayAPI } from './services/api';
 import PublicCloudsDialog from './pages/PublicCloudsDialog';
 import useLatestCallback from './hooks/useLatestCallback';
 import { GUEST_USER, newThreadId, PERSONAL_STORE, MAX_FACE_ATTEMPTS, FACE_SCAN_TIMEOUT_MS, FACE_FRAME_INTERVAL_MS, FACE_FRAME_SIZE, UNKNOWN_HISTORY_POLICY, SLASH_COMMANDS, formatDateTime } from './workspace/constants';
@@ -24,6 +24,7 @@ import RegisterScreen from './auth/RegisterScreen';
 import LoginScreen from './auth/LoginScreen';
 import useOrgGateway from './auth/useOrgGateway';
 import FaceIdScreen from './auth/FaceIdScreen';
+import { createDeviceProof } from './auth/deviceKey';
 
 export default function App() {
   const navigate = useNavigate();
@@ -249,6 +250,9 @@ export default function App() {
   const streamRef = useRef(null);
   const faceIntervalRef = useRef(null);
   const faceAwaitingRef = useRef(false);   // Đang chờ kết quả khung hình trước: không gửi dồn khung mới
+  const [deviceConfirm, setDeviceConfirm] = useState(null);      // thiết bị mới chờ mã gửi qua Email: { message, resendIn, receivedAt }
+  const [deviceConfirmBusy, setDeviceConfirmBusy] = useState(false);
+  const deviceProofRef = useRef(null);      // chứng minh khóa thiết bị trên kênh /ws/auth hiện tại
   const faceFailCountRef = useRef(0);      // Số khung hình thất bại liên tiếp
   const faceSucceededRef = useRef(false);  // Lượt quét hiện tại đã xác thực thành công
   const [faceScanStopped, setFaceScanStopped] = useState(false);
@@ -403,16 +407,40 @@ export default function App() {
 
     socket.onopen = () => {
       wsRef.current = socket;
-      if (onOpenCallback) onOpenCallback();
+      // Ứng dụng Desktop / Mobile chứng minh khóa thiết bị trước khi quét; không được thì AI Platform kiểm tra người thật như Web
+      deviceProofRef.current = createDeviceProof(socket, clientKind(), () => { if (wsRef.current === socket && onOpenCallback) onOpenCallback(); });
+      deviceProofRef.current.start();
     };
 
     socket.onmessage = (event) => {
       try {
         const res = JSON.parse(event.data);
+        if (deviceProofRef.current?.handle(res)) return;   // bước chứng minh khóa thiết bị, không phải kết quả quét
         setIsLoading(false);
         faceAwaitingRef.current = false; // Kết quả khung hình trước đã về: cho phép gửi khung tiếp theo
+        setDeviceConfirmBusy(false);
 
-        if (res.status === "LIVENESS") {
+        if (res.status === "DEVICE_CONFIRM") {
+          // Khuôn mặt đã khớp trên thiết bị chưa đăng ký: chờ mã xác nhận gửi qua Email
+          stopWebcamHardware();
+          setFaceScanStopped(false);
+          setErrorMessage('');
+          setFaceHint('');
+          setDeviceConfirm({ message: res.message, resendIn: res.resend_in, receivedAt: Date.now() });
+        } else if (res.status === "DEVICE_CONFIRMED") {
+          setDeviceConfirm(null);
+          setErrorMessage('');
+          setStatusMessage(res.message);
+          faceFailCountRef.current = 0;
+          startWebcamHardware();      // quét lại để đăng nhập bằng khóa vừa đăng ký
+        } else if (res.code === "DEVICE_CODE_WRONG") {
+          setDeviceConfirm(prev => prev && { ...prev });      // tạo bản mới để ô nhập được xóa
+          setErrorMessage(res.message);
+        } else if (res.code === "DEVICE_CODE_EXPIRED") {
+          setDeviceConfirm(null);
+          setErrorMessage(res.message);
+          setFaceScanStopped(true);
+        } else if (res.status === "LIVENESS") {
           // Bước kế tiếp của kiểm tra người thật: không phải lỗi
           setLiveness({ challenge: res.challenge, step: res.step, steps: res.steps, message: res.message });
           setFaceHint('');
@@ -475,6 +503,7 @@ export default function App() {
 
     socket.onerror = () => {
       setErrorMessage("Mất kết nối cổng bảo mật tới AI Gateway.");
+      setDeviceConfirmBusy(false);
       setIsLoading(false);
     };
 
@@ -482,6 +511,7 @@ export default function App() {
     socket.onclose = () => {
       if (wsRef.current === socket) wsRef.current = null;
       faceAwaitingRef.current = false;
+      setDeviceConfirmBusy(false);
       if (faceIntervalRef.current) {
         stopWebcamHardware();
         setFaceScanStopped(true);
@@ -526,7 +556,7 @@ export default function App() {
           canvasRef.current.height = FACE_FRAME_SIZE;
           context.drawImage(video, sx, sy, side, side, 0, 0, FACE_FRAME_SIZE, FACE_FRAME_SIZE);
           const base64Frame = canvasRef.current.toDataURL('image/jpeg', 0.9).replace(/^data:image\/[a-z]+;base64,/, "");
-          wsRef.current.send(JSON.stringify({ action: "verify_faceid", passcode: passcode, domain: activeDomain, image: base64Frame, liveness: 1 }));
+          wsRef.current.send(JSON.stringify({ action: "verify_faceid", passcode: passcode, domain: activeDomain, image: base64Frame, liveness: 1, client: clientKind() }));
         }, FACE_FRAME_INTERVAL_MS);
       }
     } catch { setErrorMessage("Không thể kích hoạt Webcam máy trạm. Vui lòng cấp quyền."); }
@@ -540,12 +570,22 @@ export default function App() {
     setIsFaceProcessing(false);
   };
 
+  // Mã xác nhận thiết bị mới: mở lại kênh nếu đã ngắt (trên điện thoại, mở ứng dụng thư có thể làm ngắt kênh)
+  const sendDeviceConfirm = (action, code) => {
+    setErrorMessage('');
+    setDeviceConfirmBusy(true);
+    initWebSocketConnection(() => {
+      wsRef.current?.send(JSON.stringify({ action, passcode, client: clientKind(), ...(code ? { code } : {}) }));
+    });
+  };
+
   // Quét lại sau khi tạm dừng: mở lại kênh WebSocket nếu đã bị đóng, reset bộ đếm lỗi
   const retryFaceScan = () => {
     faceFailCountRef.current = 0;
     setErrorMessage('');
     setFaceHint('');
     setLiveness(null);
+    setDeviceConfirm(null);
     setFaceScanStopped(false);
     initWebSocketConnection(() => setTimeout(() => startWebcamHardware(), 300));
   };
@@ -1154,8 +1194,9 @@ export default function App() {
   if (viewState === 'FACEID') {
     return (
       <FaceIdScreen
+        deviceConfirm={deviceConfirm} deviceConfirmBusy={deviceConfirmBusy} sendDeviceConfirm={sendDeviceConfirm} setDeviceConfirm={setDeviceConfirm}
         canvasRef={canvasRef} errorMessage={errorMessage} faceHint={faceHint} faceScanStopped={faceScanStopped}
-        isFaceProcessing={isFaceProcessing} liveness={liveness} orgInfo={orgInfo} retryFaceScan={retryFaceScan} setErrorMessage={setErrorMessage} setFaceScanStopped={setFaceScanStopped}
+        clientKind={clientKind()} isFaceProcessing={isFaceProcessing} liveness={liveness} orgInfo={orgInfo} retryFaceScan={retryFaceScan} setErrorMessage={setErrorMessage} setFaceScanStopped={setFaceScanStopped}
         setViewState={setViewState} statusMessage={statusMessage} stopWebcamHardware={stopWebcamHardware} videoRef={videoRef} />
     );
   }

@@ -16,6 +16,7 @@ const profileForm = (u) => ({
 });
 
 import FacePhotosPanel from './FacePhotosPanel';
+import FaceDevicesPanel from './FaceDevicesPanel';
 
 // Ngăn chi tiết một người dùng: hồ sơ, vai trò, email, bảo mật (PassCode/PassTime/FaceID) và thu hồi
 export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUnits = null, assignPolicy = null, onClose, onChanged }) {
@@ -201,6 +202,8 @@ export default function UserDrawer({ uid, catalog, permissions, actorId, scopeUn
                 <FacePhotosPanel mode="admin" uid={uid}
                   onChanged={() => identityAPI.getUser(uid).then(u => { if (u?.uid_number) { applyUser(u); onChanged(u, null); } }).catch(() => {})} />
               )}
+
+              {can('identity.security.reset') && <FaceDevicesPanel mode="admin" uid={uid} />}
 
               {can('identity.users.write') && !isSelf && (
                 <Section title="Thu hồi tài khoản" icon={Archive}>
