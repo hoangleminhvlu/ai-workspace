@@ -22,6 +22,8 @@ import RightSidebar from './workspace/RightSidebar';
 import GetCodeScreen from './auth/GetCodeScreen';
 import RegisterScreen from './auth/RegisterScreen';
 import LoginScreen from './auth/LoginScreen';
+import AppRecommendScreen from './auth/AppRecommendScreen';
+import { dismissWebNotice, isWebClient, shouldShowWebNotice } from './auth/appDownload';
 import useOrgGateway from './auth/useOrgGateway';
 import FaceIdScreen from './auth/FaceIdScreen';
 import { createDeviceProof } from './auth/deviceKey';
@@ -30,6 +32,8 @@ export default function App() {
   const navigate = useNavigate();
   // Điều hướng phân cảnh giao diện: 'LOGIN' | 'FACEID' | 'GET_CODE' | 'REGISTER' | 'WORKSPACE'
   const [viewState, setViewState] = useState('LOGIN');
+  // Web App: khuyến nghị cài ứng dụng Desktop / Mobile trước trang Đăng nhập (ứng dụng không hiện)
+  const [webNotice, setWebNotice] = useState(shouldShowWebNotice);
  
   // Trạng thái Form & Xác thực
   const [passcode, setPasscode] = useState('');
@@ -1181,9 +1185,14 @@ export default function App() {
   // =========================================================================
   // XỬ LÝ KHỐI CHỨC NĂNG: XÁC THỰC PASSCODE  (LOGIN)
   // =========================================================================
+  if (viewState === 'LOGIN' && webNotice) {
+    return <AppRecommendScreen orgInfo={orgInfo} onContinue={() => { dismissWebNotice(); setWebNotice(false); }} />;
+  }
+
   if (viewState === 'LOGIN') {
     return (
       <LoginScreen
+        onShowApps={isWebClient() ? () => setWebNotice(true) : undefined}
         acceptJoinOffer={acceptJoinOffer} activeGateway={activeGateway} connectGateway={connectGateway}
         errorMessage={errorMessage} handlePasscodeSubmit={handlePasscodeSubmit} isLoading={isLoading} joinOffer={joinOffer}
         loadOrgInfo={loadOrgInfo} orgInfo={orgInfo} passcode={passcode} setErrorMessage={setErrorMessage}

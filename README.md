@@ -88,7 +88,9 @@ chưa ký số, iOS phải build trên macOS.
 
 ## Tải về, góp ý, đặt hàng phát triển
 
-- Bộ cài Windows 11 (bản dùng thử): [Releases](https://github.com/hoangleminhvlu/ai-workspace/releases/latest).
+- Ứng dụng Windows 11 và Android (bản dùng thử): [Releases](https://github.com/hoangleminhvlu/ai-workspace/releases/latest).
+  Trước trang Đăng nhập, bản Web hiện thông báo khuyến nghị cài ứng dụng kèm đường dẫn này (`src/auth/appDownload.js`); ứng
+  dụng Desktop / Mobile không hiện.
 - [Wiki](https://github.com/hoangleminhvlu/ai-workspace/wiki): câu hỏi thường gặp, mẫu báo lỗi, mẫu đặt hàng phát triển và
   tích hợp.
 - Email **ai-tech.center@vlu.edu.vn** (Trung tâm AI-TECH, Trường Đại học Văn Lang): góp ý, báo lỗi, đặt hàng phát triển

@@ -7,7 +7,7 @@ import { CLIENT_APP } from './gatewayUtils';
 import { useState } from 'react';
 import { GatewayAddressForm, GatewayOrgCard } from './GatewayWidgets';
 
-export default function LoginScreen({ acceptJoinOffer, activeGateway, connectGateway, errorMessage, handlePasscodeSubmit, isLoading, joinOffer, loadOrgInfo, orgInfo, passcode, setErrorMessage, setJoinOffer, setPasscode, setViewState }) {
+export default function LoginScreen({ acceptJoinOffer, activeGateway, connectGateway, errorMessage, handlePasscodeSubmit, isLoading, joinOffer, loadOrgInfo, onShowApps, orgInfo, passcode, setErrorMessage, setJoinOffer, setPasscode, setViewState }) {
   const [manualGateway, setManualGateway] = useState(false);   // ứng dụng máy trạm: đang nhập địa chỉ AI Gateway khác
   return (
     <div
@@ -118,6 +118,8 @@ export default function LoginScreen({ acceptJoinOffer, activeGateway, connectGat
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-6 pt-4 border-t border-slate-800/80 text-xs font-semibold text-slate-300">
             <button onClick={() => setViewState('GET_CODE')} className="hover:text-cyan-400 transition-colors">Tôi quên PassCode (GetCode)</button>
             <button onClick={() => setViewState('REGISTER')} className="hover:text-emerald-400 transition-colors">Tôi muốn đăng ký (Register)</button>
+            {/* Chỉ Web App: mở lại khuyến nghị cài ứng dụng Desktop / Mobile */}
+            {onShowApps && <button onClick={onShowApps} className="hover:text-cyan-400 transition-colors">Tải ứng dụng Windows / Android</button>}
           </div>
         </div>
       </div>
